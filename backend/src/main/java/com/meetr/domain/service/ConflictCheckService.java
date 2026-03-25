@@ -40,8 +40,8 @@ public class ConflictCheckService {
         long alignedEndSec = ((endEpochSec + resolutionSeconds - 1) / resolutionSeconds) * resolutionSeconds;
 
         return new TimeSlot(
-            LocalDateTime.ofEpochSecond(alignedStartSec, 0,  BEIJING),
-            LocalDateTime.ofEpochSecond(alignedEndSec, 0, BEIJING)
+            zStart.toLocalDateTime(),
+            zEnd.toLocalDateTime()
         );
     }
 
