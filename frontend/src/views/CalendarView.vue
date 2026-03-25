@@ -457,8 +457,6 @@ const formattedDate = computed(() => dayjs(selectedDate.value).format('YYYY年MM
 async function loadData() {
   loading.value = true
   try {
-    const dateStr = selectedDate.value
-
     const [bData, rData] = await Promise.all([
       getBuildings(),
       getRooms({
