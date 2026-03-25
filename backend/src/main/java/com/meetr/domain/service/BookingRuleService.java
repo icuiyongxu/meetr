@@ -25,7 +25,7 @@ public class BookingRuleService {
 
     public List<RuleViolation> validate(Booking booking, MeetingRoom room, RoomConfig config) {
         List<RuleViolation> violations = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(BEIJING);
 
         if (booking.getStartTime().isBefore(now)) {
             violations.add(new RuleViolation("R1", "不能预约过去的时间"));
@@ -54,7 +54,7 @@ public class BookingRuleService {
             violations.add(new RuleViolation("R7", "最多只能提前" + config.getMaxBookAheadDays() + "天预约"));
         }
 
-        LocalDate date = booking.getStartTime().toLocalDate(BEIJING);
+        LocalDate date = booking.getStartTime().atZone(BEIJING).toLocalDate();
         long dayStartMs = date.atStartOfDay(BEIJING).toInstant().toEpochMilli();
         long dayEndMs = date.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
         long dayBookings = bookingRepository.countActiveBookingsOnDay(
