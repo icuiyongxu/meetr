@@ -1,8 +1,6 @@
 package com.meetr.application.dto;
 
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -11,25 +9,21 @@ import java.time.LocalDateTime;
 @Data
 public class UpdateBookingCommand {
 
-    @NotNull
     private Long bookingId;
 
-    @NotBlank
     private String subject;
 
     @NotNull
-    @Future
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime startTime;
 
     @NotNull
-    @Future
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime endTime;
 
-    @Min(1)
-    private Integer attendeeCount = 1;
+    private Integer attendeeCount;
 
     private String remark;
 
-    @NotBlank
     private String operatorId;
 }

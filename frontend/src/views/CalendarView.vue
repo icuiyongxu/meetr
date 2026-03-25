@@ -405,16 +405,18 @@ async function onSubmit() {
     }
     conflicts.value = []
 
-    const result = await createBooking({
-      roomId: form.roomId!,
-      subject: form.subject.trim(),
-      bookerId: store.userId,
-      bookerName: store.userName || undefined,
-      startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
-      endTime: end.format('YYYY-MM-DDTHH:mm:ss'),
-      attendeeCount: form.attendeeCount,
-      remark: form.remark?.trim() || undefined,
-    })
+      // 发北京时间字符串 "2026-03-26 02:00:00"，后端用 @JsonFormat(pattern) 解析
+      const fmt = (v: string) => dayjs.tz(v, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss')
+      const result = await createBooking({
+        roomId: form.roomId!,
+        subject: form.subject.trim(),
+        bookerId: store.userId,
+        bookerName: store.userName || undefined,
+        startTime: fmt(form.startTime),
+        endTime: fmt(form.endTime),
+        attendeeCount: form.attendeeCount,
+        remark: form.remark?.trim() || undefined,
+      })
 
     if (!result.success) {
       if (result.conflicts?.length) conflicts.value = result.conflicts
