@@ -55,7 +55,8 @@ export function getTodayBookings(bookerId: string) {
 
 /** 拉取指定会议室指定日期的全部预约（供日历视图） */
 export function getBookingsByRoomAndDate(roomId: number, date: string) {
-  // date 格式: "2026-03-25"（只传日期，后端用 ISO.DATE 解析）
-  return unwrap<Booking[]>(http.get('/rooms/schedule', { params: { roomId, day: date } }))
+  // date: "2026-03-25", 转为当天 UTC 0点的毫秒时间戳
+  const dayMillis = new Date(date + 'T00:00:00').getTime()
+  return unwrap<Booking[]>(http.get('/rooms/schedule', { params: { roomId, dayMillis } }))
 }
 

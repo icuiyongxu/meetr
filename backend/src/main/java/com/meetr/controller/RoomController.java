@@ -44,7 +44,8 @@ public class RoomController {
     @GetMapping("/api/rooms/schedule")
     public ApiResponse<List<BookingDTO>> getRoomSchedule(
             @RequestParam Long roomId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
+            @RequestParam Long dayMillis) {
+        LocalDate day = LocalDate.ofEpochDay(dayMillis / 86400_000L);
         return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, day));
     }
 
