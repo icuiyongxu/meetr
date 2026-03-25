@@ -13,6 +13,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,7 +42,7 @@ public class BookingController {
     @GetMapping("/room/{roomId}/date/{date}")
     public ApiResponse<List<BookingDTO>> getByRoomAndDate(
             @PathVariable Long roomId,
-            @PathVariable LocalDate date) {
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, date));
     }
 
