@@ -176,6 +176,11 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { getBookingsByRoomAndDate } from '@/api/booking'
@@ -225,11 +230,11 @@ const gridStyle = computed(() => ({
 
 // ── 工具 ───────────────────────────────────────────────
 function formatTime(dt: string) {
-  return dayjs(dt).format('HH:mm')
+  return dayjs.tz(dt, 'Asia/Shanghai').format('HH:mm')
 }
 
 function formatRange(start: string, end: string) {
-  return `${dayjs(start).format('YYYY-MM-DD HH:mm')} - ${dayjs(end).format('HH:mm')}`
+  return `${dayjs.tz(start, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm')} - ${dayjs.tz(end, 'Asia/Shanghai').format('HH:mm')}`
 }
 
 function statusTagType(s: Booking['status']) {
@@ -242,18 +247,18 @@ function approvalTagType(s: Booking['approvalStatus']) {
 
 function canCancel(booking: Booking) {
   if (booking.status !== 'BOOKED') return false
-  return dayjs(booking.startTime).isAfter(dayjs())
+  return dayjs.tz(booking.startTime, 'Asia/Shanghai').isAfter(dayjs())
 }
 
 // ── 预约格子逻辑 ────────────────────────────────────────
 function getBookingAt(roomId: number, slotTime: string): Booking | null {
-  const slotMin = dayjs(slotTime).valueOf()
+  const slotMin = dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()
   return (
     allDayBookings.value.find((b) => {
       if (b.roomId !== roomId) return false
       if (b.status === 'CANCELED') return false
-      const startMin = dayjs(b.startTime).valueOf()
-      const endMin = dayjs(b.endTime).valueOf()
+      const startMin = dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf()
+      const endMin = dayjs.tz(b.endTime, 'Asia/Shanghai').valueOf()
       return slotMin >= startMin && slotMin < endMin
     }) || null
   )
@@ -262,8 +267,8 @@ function getBookingAt(roomId: number, slotTime: string): Booking | null {
 function getCellClass(roomId: number, slotTime: string) {
   const b = getBookingAt(roomId, slotTime)
   const now = dayjs()
-  const slotDt = dayjs(slotTime)
-  if (b) return { booked: true, 'booking-start': dayjs(b.startTime).valueOf() === slotDt.valueOf() }
+  const slotDt = dayjs.tz(slotTime, 'Asia/Shanghai')
+  if (b) return { booked: true, 'booking-start': dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf() === slotDt.valueOf() }
   if (slotDt.isBefore(now)) return { past: true }
   return { free: true }
 }
@@ -279,13 +284,13 @@ function getBookingBlockClass(booking: Booking) {
 function getBookingBlockStyle(booking: Booking, _roomId: number, slotTime: string): Record<string, string> {
   // 纵向位置由 slot 在 timeSlots 中的索引决定
   const slotIdx = timeSlots.value.findIndex((s) => s.time === slotTime)
-  if (slotIdx < 0 || dayjs(booking.startTime).valueOf() !== dayjs(slotTime).valueOf()) {
+  if (slotIdx < 0 || dayjs.tz(booking.startTime, 'Asia/Shanghai').valueOf() !== dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()) {
     return { display: 'none' }
   }
 
   // 计算跨越的 slot 数
-  const startMin = dayjs(booking.startTime).valueOf()
-  const endMin = dayjs(booking.endTime).valueOf()
+  const startMin = dayjs.tz(booking.startTime, 'Asia/Shanghai').valueOf()
+  const endMin = dayjs.tz(booking.endTime, 'Asia/Shanghai').valueOf()
   const slotMs = SLOT_MINUTES * 60 * 1000
   const slotsCount = Math.round((endMin - startMin) / slotMs)
 

@@ -6,6 +6,12 @@ import '@/style.css'
 import App from '@/App.vue'
 import router from '@/router'
 import { useBookingStore } from '@/stores/booking'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+import dayjs from 'dayjs'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const app = createApp(App)
 
