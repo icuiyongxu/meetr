@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class CreateBookingCommand {
@@ -31,6 +32,8 @@ public class CreateBookingCommand {
     private LocalDateTime endTime;
 
     private Integer attendeeCount;
+
+    private List<String> attendeeIds;
 
     private String remark;
 }
