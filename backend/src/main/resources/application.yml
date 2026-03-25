@@ -17,6 +17,12 @@ spring:
   sql:
     init:
       mode: never
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
 
 server:
   port: 8080
+
+# JVM 启动参数需要加: -Duser.timezone=Asia/Shanghai
+# 或者在运行配置里设置: -Duser.timezone=Asia/Shanghai

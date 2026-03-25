@@ -3,16 +3,24 @@ package com.meetr.config;
 import com.meetr.domain.entity.RoomConfig;
 import com.meetr.domain.enums.RoomStatus;
 import com.meetr.domain.repository.RoomConfigRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.TimeZone;
 
 @Configuration
 @RequiredArgsConstructor
 public class DefaultRoomConfigInitializer {
 
     private final RoomConfigRepository roomConfigRepository;
+
+    @PostConstruct
+    public void initTimezone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+    }
 
     @Bean
     public ApplicationRunner defaultRoomConfigRunner() {
