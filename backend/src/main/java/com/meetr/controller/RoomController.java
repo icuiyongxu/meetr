@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -43,8 +44,8 @@ public class RoomController {
     @GetMapping("/api/rooms/schedule")
     public ApiResponse<List<BookingDTO>> getRoomSchedule(
             @RequestParam Long roomId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime day) {
-        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, day.toLocalDate()));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
+        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, day));
     }
 
     @GetMapping("/api/rooms/available")
