@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,8 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class BookingRuleService {
+
+    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
     private final BookingRepository bookingRepository;
 
@@ -51,11 +54,13 @@ public class BookingRuleService {
             violations.add(new RuleViolation("R7", "最多只能提前" + config.getMaxBookAheadDays() + "天预约"));
         }
 
-        LocalDate date = booking.getStartTime().toLocalDate();
+        LocalDate date = booking.getStartTime().toLocalDate(BEIJING);
+        long dayStartMs = date.atStartOfDay(BEIJING).toInstant().toEpochMilli();
+        long dayEndMs = date.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
         long dayBookings = bookingRepository.countActiveBookingsOnDay(
             booking.getBookerId(),
-            date.atStartOfDay(),
-            date.plusDays(1).atStartOfDay(),
+            dayStartMs,
+            dayEndMs,
             booking.getId()
         );
         if (dayBookings >= config.getMaxPerDay()) {
