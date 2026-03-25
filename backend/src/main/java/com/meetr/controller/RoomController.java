@@ -1,6 +1,8 @@
 package com.meetr.controller;
 
+import com.meetr.application.BookingApplicationService;
 import com.meetr.application.RoomApplicationService;
+import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.RoomDTO;
 import com.meetr.application.dto.RoomStatusUpdateRequest;
 import com.meetr.application.dto.RoomUpsertRequest;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -26,6 +29,7 @@ import java.util.List;
 public class RoomController {
 
     private final RoomApplicationService roomApplicationService;
+    private final BookingApplicationService bookingApplicationService;
 
     @GetMapping("/api/rooms")
     public ApiResponse<List<RoomDTO>> list(@RequestParam(required = false) Long buildingId,
@@ -34,6 +38,13 @@ public class RoomController {
                                            @RequestParam(required = false) RoomStatus status,
                                            @RequestParam(required = false) String keyword) {
         return ApiResponse.ok(roomApplicationService.list(buildingId, floor, capacity, status, keyword));
+    }
+
+    @GetMapping("/api/rooms/schedule")
+    public ApiResponse<List<BookingDTO>> getRoomSchedule(
+            @RequestParam Long roomId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime day) {
+        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, day.toLocalDate()));
     }
 
     @GetMapping("/api/rooms/available")

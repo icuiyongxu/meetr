@@ -55,6 +55,7 @@ export function getTodayBookings(bookerId: string) {
 
 /** 拉取指定会议室指定日期的全部预约（供日历视图） */
 export function getBookingsByRoomAndDate(roomId: number, date: string) {
-  return unwrap<Booking[]>(http.get(`/bookings/room/${roomId}/date/${date}`))
+  // 调用 GET /api/rooms/schedule?roomId=1&day=2026-03-26T00:00:00
+  return unwrap<Booking[]>(http.get('/rooms/schedule', { params: { roomId, day: date + 'T00:00:00' } }))
 }
 
