@@ -59,12 +59,9 @@
           <div class="user">
             <!-- 布局切换按钮 -->
             <el-tooltip :content="menuLayout === 'side' ? '切换到顶部菜单' : '切换到侧边菜单'" placement="bottom">
-              <el-button
-                :icon="menuLayout === 'side' ? 'Top' : 'Grid'"
-                circle
-                text
-                @click="toggleLayout"
-              />
+              <el-button text @click="toggleLayout">
+                {{ menuLayout === 'side' ? '≡ 顶部菜单' : '☰ 侧边菜单' }}
+              </el-button>
             </el-tooltip>
 
             <el-tooltip placement="bottom" content="当前为无登录模式，userId 用于请求参数">
