@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Validated
@@ -32,6 +33,17 @@ import java.util.List;
 public class BookingController {
 
     private final BookingApplicationService bookingApplicationService;
+
+    /**
+     * 查询指定会议室指定日期的全部预约（供日历视图渲染）
+     * GET /api/bookings/room/{roomId}/date/2026-03-25
+     */
+    @GetMapping("/room/{roomId}/date/{date}")
+    public ApiResponse<List<BookingDTO>> getByRoomAndDate(
+            @PathVariable Long roomId,
+            @PathVariable LocalDate date) {
+        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, date));
+    }
 
     @PostMapping
     public ApiResponse<BookingResult> create(@Valid @RequestBody CreateBookingCommand command) {

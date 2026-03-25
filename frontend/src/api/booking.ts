@@ -53,3 +53,8 @@ export function getTodayBookings(bookerId: string) {
   return unwrap(http.get('/bookings/today', { params: { bookerId } }))
 }
 
+/** 拉取指定会议室指定日期的全部预约（供日历视图） */
+export function getBookingsByRoomAndDate(roomId: number, date: string) {
+  return unwrap<Booking[]>(http.get(`/bookings/room/${roomId}/date/${date}`))
+}
+

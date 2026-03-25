@@ -56,4 +56,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                   @Param("dayStart") LocalDateTime dayStart,
                                   @Param("dayEnd") LocalDateTime dayEnd,
                                   @Param("excludeBookingId") Long excludeBookingId);
+
+    /** 查询指定会议室指定日期的所有预约（供日历视图使用，含已取消的用于展示） */
+    @Query("""
+        select b from Booking b
+        where b.roomId = :roomId
+          and b.startTime < :dayEnd
+          and b.endTime >= :dayStart
+        order by b.startTime asc
+        """)
+    List<Booking> findByRoomIdAndDate(@Param("roomId") Long roomId,
+                                        @Param("dayStart") LocalDateTime dayStart,
+                                        @Param("dayEnd") LocalDateTime dayEnd);
 }

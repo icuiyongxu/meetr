@@ -147,6 +147,15 @@ public class BookingApplicationService {
             .toList();
     }
 
+    /** 查询指定会议室指定日期的全部预约（供日历视图使用） */
+    public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, LocalDate date) {
+        LocalDateTime dayStart = date.atStartOfDay();
+        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
+        return bookingRepository.findByRoomIdAndDate(roomId, dayStart, dayEnd).stream()
+            .map(this::toDto)
+            .toList();
+    }
+
     public ConflictCheckResponse checkConflict(ConflictCheckRequest request) {
         MeetingRoom room = requireAvailableRoom(request.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
