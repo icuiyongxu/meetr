@@ -28,7 +28,8 @@
       <el-container>
         <!-- 顶部栏 -->
         <el-header class="header">
-          <div class="brand" :class="{ 'brand-top-only': menuLayout === 'side' }" @click="router.push('/')">
+          <!-- 顶部 Logo 仅在顶部菜单模式显示 -->
+          <div v-if="menuLayout === 'top'" class="brand" @click="router.push('/')">
             <div class="logo">Meetr</div>
             <div class="sub">会议室预定</div>
           </div>
