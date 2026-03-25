@@ -198,8 +198,8 @@ const allDayBookings = ref<Booking[]>([]) // 当日全量预约
 
 // ── 时间格（按 resolution=30min 生成） ───────────────────
 const SLOT_MINUTES = 30 // TODO: 后续按会议室 config 动态
-const OPEN_HOUR = 8
-const CLOSE_HOUR = 22
+const OPEN_HOUR = 0   // 24小时制，从 00:00 开始
+const CLOSE_HOUR = 24 // 到 24:00 结束（全天）
 
 const timeSlots = computed(() => {
   const slots = []
