@@ -16,12 +16,15 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Data
 @Entity
 @Table(name = "booking")
 @EqualsAndHashCode(callSuper = true)
 public class Booking extends BaseEntity {
+
+    private static final ZoneOffset UTC = ZoneOffset.UTC;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -39,11 +42,13 @@ public class Booking extends BaseEntity {
     @Column(length = 100)
     private String bookerName;
 
+    /** UTC 毫秒时间戳，存为 BIGINT */
     @Column(nullable = false)
-    private LocalDateTime startTime;
+    private Long startTimeMs;
 
+    /** UTC 毫秒时间戳，存为 BIGINT */
     @Column(nullable = false)
-    private LocalDateTime endTime;
+    private Long endTimeMs;
 
     @Column(nullable = false)
     private Integer attendeeCount = 1;
@@ -63,13 +68,31 @@ public class Booking extends BaseEntity {
     @Column(nullable = false)
     private Long version;
 
+    // ── 转换方法 ──────────────────────────────────────
+
+    public LocalDateTime getStartTime() {
+        return LocalDateTime.ofEpochSecond(startTimeMs / 1000, 0, UTC);
+    }
+
+    public LocalDateTime getEndTime() {
+        return LocalDateTime.ofEpochSecond(endTimeMs / 1000, 0, UTC);
+    }
+
+    public void setStartTime(LocalDateTime dt) {
+        this.startTimeMs = dt.toEpochSecond(UTC) * 1000;
+    }
+
+    public void setEndTime(LocalDateTime dt) {
+        this.endTimeMs = dt.toEpochSecond(UTC) * 1000;
+    }
+
     public TimeSlot timeSlot() {
-        return new TimeSlot(startTime, endTime);
+        return new TimeSlot(getStartTime(), getEndTime());
     }
 
     public void applyTimeSlot(TimeSlot timeSlot) {
-        this.startTime = timeSlot.start();
-        this.endTime = timeSlot.end();
+        setStartTime(timeSlot.start());
+        setEndTime(timeSlot.end());
     }
 
     public void cancel() {

@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS booking (
     subject VARCHAR(200) NOT NULL,
     booker_id VARCHAR(64) NOT NULL,
     booker_name VARCHAR(100) NULL,
-    start_time DATETIME NOT NULL,
-    end_time DATETIME NOT NULL,
+    start_time_ms BIGINT NOT NULL COMMENT 'UTC milliseconds since epoch',
+    end_time_ms BIGINT NOT NULL COMMENT 'UTC milliseconds since epoch',
     attendee_count INT NOT NULL DEFAULT 1,
     status VARCHAR(20) NOT NULL DEFAULT 'BOOKED',
     approval_status VARCHAR(20) NOT NULL DEFAULT 'NONE',
@@ -61,8 +61,8 @@ CREATE TABLE IF NOT EXISTS booking (
     updated_at DATETIME NOT NULL,
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_booking_room FOREIGN KEY (room_id) REFERENCES meeting_room(id),
-    INDEX idx_room_time (room_id, start_time, end_time),
-    INDEX idx_booker_time (booker_id, start_time)
+    INDEX idx_room_time (room_id, start_time_ms, end_time_ms),
+    INDEX idx_booker_time (booker_id, start_time_ms)
 );
 
 CREATE TABLE IF NOT EXISTS booking_attendee (

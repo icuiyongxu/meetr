@@ -36,12 +36,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class BookingApplicationService {
+
+    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
     private final BookingRepository bookingRepository;
     private final BookingAttendeeRepository bookingAttendeeRepository;
@@ -137,22 +140,23 @@ public class BookingApplicationService {
     }
 
     public Page<BookingDTO> getMyBookings(String bookerId, Pageable pageable) {
-        return bookingRepository.findByBookerIdOrderByStartTimeDesc(bookerId, pageable)
+        return bookingRepository.findByBookerIdOrderByStartTimeMsDesc(bookerId, pageable)
             .map(this::toDto);
     }
 
     public List<BookingDTO> getTodayBookings(String bookerId) {
-        LocalDate today = LocalDate.now();
-        return bookingRepository.findTodayBookings(bookerId, today.atStartOfDay(), today.plusDays(1).atStartOfDay()).stream()
+        // 今天的 UTC 毫秒范围
+        LocalDate today = LocalDate.now(BEIJING);
+        long dayStartMs = today.atStartOfDay(BEIJING).toInstant().toEpochMilli();
+        long dayEndMs = today.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
+        return bookingRepository.findTodayBookings(bookerId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
     }
 
     /** 查询指定会议室指定日期的全部预约（供日历视图使用） */
-    public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, LocalDate date) {
-        LocalDateTime dayStart = date.atStartOfDay();
-        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
-        return bookingRepository.findByRoomIdAndDate(roomId, dayStart, dayEnd).stream()
+    public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, Long dayStartMs, Long dayEndMs) {
+        return bookingRepository.findByRoomIdAndDate(roomId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
     }

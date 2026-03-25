@@ -19,10 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 @RestController
@@ -42,12 +39,14 @@ public class RoomController {
         return ApiResponse.ok(roomApplicationService.list(buildingId, floor, capacity, status, keyword));
     }
 
+    /** 日历视图用：dayMillis = UTC 毫秒（北京时间当天 00:00:00） */
     @GetMapping("/api/rooms/schedule")
     public ApiResponse<List<BookingDTO>> getRoomSchedule(
             @RequestParam Long roomId,
-            @RequestParam String day) {
-        LocalDate localDate = LocalDate.parse(day);
-        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, localDate));
+            @RequestParam Long dayMillis) {
+        Long dayStartMs = dayMillis;
+        Long dayEndMs = dayMillis + 86_400_000L; // +24h
+        return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, dayStartMs, dayEndMs));
     }
 
     @GetMapping("/api/rooms/available")
