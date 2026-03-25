@@ -273,7 +273,8 @@ function getCellClass(roomId: number, slotTime: string) {
   return { free: true }
 }
 
-function getBookingBlockClass(booking: Booking) {
+function getBookingBlockClass(booking: Booking | null | undefined) {
+  if (!booking) return {}
   return {
     'is-own': booking.bookerId === store.userId,
     'is-others': booking.bookerId !== store.userId,
@@ -281,7 +282,8 @@ function getBookingBlockClass(booking: Booking) {
   }
 }
 
-function getBookingBlockStyle(booking: Booking, _roomId: number, slotTime: string): Record<string, string> {
+function getBookingBlockStyle(booking: Booking | null | undefined, _roomId: number, slotTime: string): Record<string, string> {
+  if (!booking) return { display: 'none' }
   // 纵向位置由 slot 在 timeSlots 中的索引决定
   const slotIdx = timeSlots.value.findIndex((s) => s.time === slotTime)
   if (slotIdx < 0 || dayjs.tz(booking.startTime, 'Asia/Shanghai').valueOf() !== dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()) {
