@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS room_config (
     status VARCHAR(20) NOT NULL DEFAULT 'ENABLED',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
-    CONSTRAINT fk_room_config_room FOREIGN KEY (room_id) REFERENCES meeting_room(id)
+    INDEX idx_room_config_room (room_id),
+    CONSTRAINT fk_room_config_room FOREIGN KEY (room_id) REFERENCES meeting_room(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS booking (
