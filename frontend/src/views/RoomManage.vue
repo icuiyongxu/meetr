@@ -164,7 +164,14 @@ const rules: FormRules = {
 
 function openCreate() {
   if (!buildings.value.length) {
-    ElMessage.error('请先创建楼栋')
+    ElMessageBox.confirm('当前没有任何楼栋，请先创建楼栋', '提示', {
+      confirmButtonText: '去创建楼栋',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(() => {
+      // 触发 App.vue 导航到楼栋管理（如果后续有楼栋管理页），或给出提示
+      ElMessage.info('请通过"楼栋管理"页面先创建楼栋')
+    }).catch(() => {})
     return
   }
   editingId.value = null

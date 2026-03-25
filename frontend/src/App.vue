@@ -17,6 +17,7 @@
         <el-menu-item index="/my-bookings">我的预约</el-menu-item>
         <el-sub-menu index="/admin">
           <template #title>管理</template>
+          <el-menu-item index="/admin/buildings">楼栋管理</el-menu-item>
           <el-menu-item index="/admin/rooms">会议室管理</el-menu-item>
           <el-menu-item index="/admin/config">规则配置</el-menu-item>
         </el-sub-menu>
@@ -44,6 +45,7 @@
           <el-menu-item index="/my-bookings">我的预约</el-menu-item>
           <el-sub-menu index="admin">
             <template #title>管理</template>
+            <el-menu-item index="/admin/buildings">楼栋管理</el-menu-item>
             <el-menu-item index="/admin/rooms">会议室管理</el-menu-item>
             <el-menu-item index="/admin/config">规则配置</el-menu-item>
           </el-sub-menu>

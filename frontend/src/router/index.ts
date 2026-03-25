@@ -4,6 +4,7 @@ import CalendarView from '@/views/CalendarView.vue'
 import BookingPage from '@/views/BookingPage.vue'
 import MyBookings from '@/views/MyBookings.vue'
 import RoomManage from '@/views/RoomManage.vue'
+import BuildingManage from '@/views/BuildingManage.vue'
 import ConfigManage from '@/views/ConfigManage.vue'
 
 const router = createRouter({
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: '/', component: CalendarView },
     { path: '/booking/:roomId', component: BookingPage },
     { path: '/my-bookings', component: MyBookings },
+    { path: '/admin/buildings', component: BuildingManage },
     { path: '/admin/rooms', component: RoomManage },
     { path: '/admin/config', component: ConfigManage },
   ],
