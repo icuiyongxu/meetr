@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,14 +30,6 @@ public class BookingRuleService {
 
         if (!booking.getStartTime().isBefore(booking.getEndTime())) {
             violations.add(new RuleViolation("R2", "开始时间必须早于结束时间"));
-        }
-
-        LocalTime startTime = booking.getStartTime().toLocalTime();
-        LocalTime endTime = booking.getEndTime().toLocalTime();
-        if (!booking.getStartTime().toLocalDate().equals(booking.getEndTime().toLocalDate())
-            || startTime.isBefore(config.getMorningStartsAsTime())
-            || endTime.isAfter(config.getEveningEndsAsTime())) {
-            violations.add(new RuleViolation("R3", "预约时间不在开放时间段内"));
         }
 
         long durationMinutes = booking.timeSlot().durationMinutes();
