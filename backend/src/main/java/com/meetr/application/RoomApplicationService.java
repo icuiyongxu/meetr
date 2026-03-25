@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class RoomApplicationService {
+
+    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
     private final MeetingRoomRepository meetingRoomRepository;
     private final BuildingRepository buildingRepository;
@@ -33,7 +36,10 @@ public class RoomApplicationService {
         if (startTime == null || endTime == null || !startTime.isBefore(endTime)) {
             throw new BusinessException(40002, "开始时间必须早于结束时间");
         }
-        return enrich(meetingRoomRepository.findAvailable(startTime, endTime, buildingId, capacity)).stream()
+        // Convert LocalDateTime (Beijing) to UTC millis
+        long startMs = startTime.atZone(BEIJING).toInstant().toEpochMilli();
+        long endMs = endTime.atZone(BEIJING).toInstant().toEpochMilli();
+        return enrich(meetingRoomRepository.findAvailable(startMs, endMs, buildingId, capacity)).stream()
             .filter(room -> {
                 Building building = buildingRepository.findById(room.getBuildingId()).orElse(null);
                 return building != null && building.getStatus() == BuildingStatus.ACTIVE;

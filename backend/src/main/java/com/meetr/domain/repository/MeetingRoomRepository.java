@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -47,13 +46,13 @@ public interface MeetingRoomRepository extends JpaRepository<MeetingRoom, Long> 
                 where b.roomId = r.id
                   and b.status <> com.meetr.domain.enums.BookingStatus.CANCELED
                   and b.approvalStatus <> com.meetr.domain.enums.ApprovalStatus.REJECTED
-                  and b.startTime < :endTime
-                  and b.endTime > :startTime
+                  and b.startTimeMs < :endTimeMs
+                  and b.endTimeMs > :startTimeMs
           )
         order by r.buildingId asc, r.floor asc, r.name asc
         """)
-    List<MeetingRoom> findAvailable(@Param("startTime") LocalDateTime startTime,
-                                    @Param("endTime") LocalDateTime endTime,
+    List<MeetingRoom> findAvailable(@Param("startTimeMs") Long startTimeMs,
+                                    @Param("endTimeMs") Long endTimeMs,
                                     @Param("buildingId") Long buildingId,
                                     @Param("capacity") Integer capacity);
 }
