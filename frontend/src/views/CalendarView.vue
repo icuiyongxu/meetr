@@ -58,16 +58,16 @@
             :class="getCellClass(room.id, slot.time)"
             @click="onCellClick(room, slot)"
           >
-            <template v-if="getBookingAt(room.id, slot.time) as booking">
+            <template v-if="getBookingAt(room.id, slot.time)">
               <div
                 class="booking-block"
-                :class="getBookingBlockClass(booking)"
-                :style="getBookingBlockStyle(booking, room.id, slot.time)"
-                @click.stop="onBookingClick(booking)"
+                :class="getBookingBlockClass(getBookingAt(room.id, slot.time))"
+                :style="getBookingBlockStyle(getBookingAt(room.id, slot.time), room.id, slot.time)"
+                @click.stop="onBookingClick(getBookingAt(room.id, slot.time)!)"
               >
-                <div class="booking-subject">{{ booking.subject }}</div>
-                <div class="booking-time">{{ formatTime(booking.startTime) }}-{{ formatTime(booking.endTime) }}</div>
-                <div class="booking-owner">{{ booking.bookerName || booking.bookerId }}</div>
+                <div class="booking-subject">{{ getBookingAt(room.id, slot.time)!.subject }}</div>
+                <div class="booking-time">{{ formatTime(getBookingAt(room.id, slot.time)!.startTime) }}-{{ formatTime(getBookingAt(room.id, slot.time)!.endTime) }}</div>
+                <div class="booking-owner">{{ getBookingAt(room.id, slot.time)!.bookerName || getBookingAt(room.id, slot.time)!.bookerId }}</div>
               </div>
             </template>
           </div>
