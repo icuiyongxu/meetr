@@ -9,9 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +40,7 @@ public class ConflictCheckService {
         long alignedEndSec = ((endEpochSec + resolutionSeconds - 1) / resolutionSeconds) * resolutionSeconds;
 
         return new TimeSlot(
-            LocalDateTime.ofEpochSecond(alignedStartSec, 0, BEIJING),
+            LocalDateTime.ofEpochSecond(alignedStartSec, 0,  BEIJING),
             LocalDateTime.ofEpochSecond(alignedEndSec, 0, BEIJING)
         );
     }
