@@ -7,7 +7,7 @@ spring:
     password: 123qwe!@#QWE
   sql:
     init:
-      mode: never
+      mode: always
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai

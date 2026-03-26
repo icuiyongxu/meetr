@@ -27,8 +27,8 @@ public class BuildingApplicationService {
     public BuildingDTO create(BuildingUpsertRequest request) {
         Building building = new Building();
         apply(request, building);
-        building.touchForUpdate();
-        buildingMapper.update(building);
+        building.initTimestampsForInsert();
+        buildingMapper.insert(building);
         return toDto(building);
     }
 

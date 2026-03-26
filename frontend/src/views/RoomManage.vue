@@ -36,7 +36,7 @@
             <el-tag v-for="k in row.equipment" :key="k" size="small" effect="plain" class="tag">
               {{ equipmentLabel(k) }}
             </el-tag>
-            <el-text v-if="!row.equipment.length" type="info">无</el-text>
+            <el-text v-if="!row.equipment?.length" type="info">无</el-text>
           </template>
         </el-table-column>
 
@@ -72,7 +72,7 @@
           <el-input v-model="form.floor" placeholder="如 10F / B1" />
         </el-form-item>
         <el-form-item label="容量" prop="capacity">
-          <el-input-number v-model="form.capacity" :min="0" :max="999" />
+          <el-input-number v-model="form.capacity" :min="1" :max="999" />
         </el-form-item>
         <el-form-item label="设备" prop="equipmentItems">
           <el-select v-model="form.equipmentItems" multiple clearable placeholder="选择设备" style="width: 100%">
@@ -96,20 +96,31 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getBuildings } from '@/api/building'
 import { createRoom, getRooms, updateRoom, updateRoomStatus } from '@/api/room'
+import { getEquipments, type Equipment } from '@/api/equipment'
 import type { Building } from '@/types/building'
 import type { Room } from '@/types/room'
-import { equipmentLabel, equipmentOptions } from '@/utils/equipment'
 
 type RoomRow = Room & { _updating?: boolean }
 
 const buildings = ref<Building[]>([])
+const equipmentList = ref<Equipment[]>([])
 const rooms = ref<RoomRow[]>([])
 const loading = ref(false)
 const keyword = ref('')
 const buildingId = ref<number | undefined>(undefined)
+
+const equipmentOptions = computed(() =>
+  equipmentList.value
+    .filter(e => e.status === 'ACTIVE')
+    .map(e => ({ label: e.name, value: e.code }))
+)
+
+function equipmentLabel(key: string) {
+  return equipmentList.value.find(e => e.code === key)?.name || key
+}
 
 async function load() {
   loading.value = true
@@ -145,7 +156,7 @@ const form = reactive({
   buildingId: 0,
   name: '',
   floor: '',
-  capacity: 0,
+  capacity: 1,
   equipmentItems: [] as string[],
   remark: '',
   status: 'ENABLED' as 'ENABLED' | 'DISABLED',
@@ -159,7 +170,7 @@ const enabledSwitch = computed({
 const rules: FormRules = {
   buildingId: [{ required: true, message: '请选择楼栋', trigger: 'change' }],
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  capacity: [{ required: true, message: '请输入容量', trigger: 'change' }],
+  capacity: [{ required: true, message: '请输入容量', trigger: 'change', validator: (rule, val, cb) => cb(val >= 1 ? undefined : new Error('容量不能小于1')) }],
 }
 
 function openCreate() {
@@ -169,7 +180,6 @@ function openCreate() {
       cancelButtonText: '取消',
       type: 'warning',
     }).then(() => {
-      // 触发 App.vue 导航到楼栋管理（如果后续有楼栋管理页），或给出提示
       ElMessage.info('请通过"楼栋管理"页面先创建楼栋')
     }).catch(() => {})
     return
@@ -178,7 +188,7 @@ function openCreate() {
   form.buildingId = buildings.value[0]?.id || 0
   form.name = ''
   form.floor = ''
-  form.capacity = 0
+  form.capacity = 1
   form.equipmentItems = []
   form.remark = ''
   form.status = 'ENABLED'
@@ -229,6 +239,7 @@ async function save() {
 
 onMounted(async () => {
   buildings.value = await getBuildings()
+  equipmentList.value = await getEquipments()
   await load()
 })
 </script>

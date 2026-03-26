@@ -55,8 +55,8 @@ public class AuthService {
             .userId(userId)
             .name(userId)
             .status("ACTIVE")
-            .createdAtMs(System.currentTimeMillis())
             .build();
+        user.initTimestampsForInsert();
         sysUserMapper.insert(user);
         assignRole(user, "USER");
         return user;
@@ -72,8 +72,8 @@ public class AuthService {
             .name(name != null ? name : userId)
             .password(passwordEncoder.encode(password))
             .status("ACTIVE")
-            .createdAtMs(System.currentTimeMillis())
             .build();
+        user.initTimestampsForInsert();
         sysUserMapper.insert(user);
         assignRole(user, "USER");
         return user;
@@ -91,6 +91,7 @@ public class AuthService {
         if (status != null) {
             user.setStatus(status);
         }
+        user.touchForUpdate();
         sysUserMapper.update(user);
         return user;
     }
@@ -106,6 +107,7 @@ public class AuthService {
     public SysUser setUserStatus(Long id, String status) {
         SysUser user = requireUser(id);
         user.setStatus(status);
+        user.touchForUpdate();
         sysUserMapper.update(user);
         return user;
     }

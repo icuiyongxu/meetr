@@ -18,4 +18,15 @@ public class SysUser {
     private String password;
     private String status = "ACTIVE";
     private Long createdAtMs;
+    private Long updatedAtMs;
+
+    public void initTimestampsForInsert() {
+        long now = System.currentTimeMillis();
+        if (createdAtMs == null) createdAtMs = now;
+        if (updatedAtMs == null) updatedAtMs = now;
+    }
+
+    public void touchForUpdate() {
+        updatedAtMs = System.currentTimeMillis();
+    }
 }
