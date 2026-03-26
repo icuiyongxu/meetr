@@ -66,7 +66,10 @@
                 :style="getBookingBlockStyle(getBookingAt(room.id, slot.time), room.id, slot.time)"
                 @click.stop="onBookingClick(getBookingAt(room.id, slot.time)!)"
               >
-                <div class="booking-subject">{{ getBookingAt(room.id, slot.time)!.subject }}</div>
+                <div class="booking-subject">
+                  <span v-if="getBookingAt(room.id, slot.time)!.recurrenceType && getBookingAt(room.id, slot.time)!.recurrenceType !== 'NONE'" class="recurring-badge">↻</span>
+                  {{ getBookingAt(room.id, slot.time)!.subject }}
+                </div>
                 <div class="booking-time">{{ formatTime(getBookingAt(room.id, slot.time)!.startTime) }}-{{ formatTime(getBookingAt(room.id, slot.time)!.endTime) }}</div>
                 <div class="booking-owner">{{ getBookingAt(room.id, slot.time)!.bookerName || getBookingAt(room.id, slot.time)!.bookerId }}</div>
               </div>
@@ -97,8 +100,31 @@
               {{ selectedBooking.approvalStatus }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item v-if="selectedBooking.remark" label="备注">{{ selectedBooking.remark }}</el-descriptions-item>
+          <el-descriptions-item v-if="selectedBooking.recurrenceType && selectedBooking.recurrenceType !== 'NONE'" label="重复">
+            {{ recurrenceLabel(selectedBooking.recurrenceType) }}，至 {{ selectedBooking.recurrenceEndDate }}
+          </el-descriptions-item>
+          <el-descriptions-item label="备注">{{ selectedBooking.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
+
+        <!-- 系列子预约列表 -->
+        <div v-if="seriesBookings.length > 1" class="series-list">
+          <div class="series-list-title">系列全部场次（共 {{ seriesBookings.length }} 场）</div>
+          <el-table :data="seriesBookings" size="small" border>
+            <el-table-column label="时间" prop="startTime" :formatter="(row) => formatRange(row.startTime, row.endTime)" />
+            <el-table-column label="状态" prop="status" />
+            <el-table-column label="操作" width="80">
+              <template #default="{ row }">
+                <el-button
+                  v-if="canCancel(row)"
+                  type="danger"
+                  size="small"
+                  link
+                  @click="onCancelBooking(row)"
+                >取消</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
 
         <div class="detail-actions">
           <el-button
@@ -107,7 +133,15 @@
             plain
             @click="onCancelBooking(selectedBooking)"
           >
-            取消预约
+            {{ selectedBooking.recurrenceType && selectedBooking.recurrenceType !== 'NONE' ? '取消本次' : '取消预约' }}
+          </el-button>
+          <el-button
+            v-if="selectedBooking.recurrenceType && selectedBooking.recurrenceType !== 'NONE'"
+            type="warning"
+            plain
+            @click="onCancelSeries(selectedBooking)"
+          >
+            取消全部系列
           </el-button>
           <el-button @click="dialogMode = 'create'; dialogVisible = false">新建其他</el-button>
         </div>
@@ -355,10 +389,26 @@ function onCellClick(room: Room, slot: { time: string; label: string }) {
   showBookingDialog(null, room.id, slot.time)
 }
 
-function onBookingClick(booking: Booking) {
+async function onBookingClick(booking: Booking) {
   selectedBooking.value = booking
+  seriesBookings.value = []
   dialogMode.value = 'view'
   dialogVisible.value = true
+  // 如果是重复预约，加载系列全部场次
+  if (booking.recurrenceType && booking.recurrenceType !== 'NONE') {
+    await loadSeriesBookings(booking)
+  }
+}
+
+async function loadSeriesBookings(b: Booking) {
+  // 系列 ID = parentId（非空时）或自身 ID
+  const seriesId = b.parentId ?? b.id
+  try {
+    const all = await getMyBookings({ bookerId: store.userId, page: 0, size: 500 })
+    seriesBookings.value = (all.content ?? []).filter(
+      (item: Booking) => (item.parentId === seriesId) || (item.id === seriesId && item.seriesIndex === 1),
+    ).sort((a: Booking, b: Booking) => a.startTime - b.startTime)
+  } catch {}
 }
 
 // ── 拖拽选择 ────────────────────────────────────────────
@@ -417,11 +467,19 @@ function preventSelect(e: Event) {
 const dialogMode = ref<'create' | 'view'>('create')
 const dialogVisible = ref(false)
 const selectedBooking = ref<Booking | null>(null)
+const seriesBookings = ref<Booking[]>([])
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const conflicts = ref<BookingConflictDTO[]>([])
 
 const store = useBookingStore()
+
+function recurrenceLabel(type?: string) {
+  const map: Record<string, string> = {
+    DAILY: '每天', WEEKLY: '每周', WORKDAY: '工作日', MONTHLY: '每月',
+  }
+  return type ? (map[type] ?? type) : ''
+}
 
 const form = reactive({
   roomId: null as number | null,
@@ -534,6 +592,14 @@ async function onCancelBooking(booking: Booking) {
   await ElMessageBox.confirm('确定要取消这个预约吗？', '取消确认', { type: 'warning' })
   await cancelBooking(booking.id, store.userId)
   ElMessage.success('已取消')
+  dialogVisible.value = false
+  await loadData()
+}
+
+async function onCancelSeries(booking: Booking) {
+  await ElMessageBox.confirm('取消全部系列预约？此操作不可恢复。', '取消确认', { type: 'warning' })
+  await cancelBooking(booking.id, store.userId, true)
+  ElMessage.success('已取消全部系列预约')
   dialogVisible.value = false
   await loadData()
 }
@@ -778,6 +844,13 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
+.recurring-badge {
+  color: var(--el-color-primary);
+  font-size: 12px;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+
 .booking-time {
   opacity: 0.8;
   white-space: nowrap;
@@ -793,6 +866,19 @@ onMounted(() => {
 /* ── 详情 ─────────────────────────────────────────────── */
 .booking-detail {
   padding: 4px 0;
+}
+
+.series-list {
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
+.series-list-title {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
 }
 
 .detail-actions {

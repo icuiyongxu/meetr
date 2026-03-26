@@ -15,9 +15,12 @@
       </template>
     </el-table-column>
 
-    <el-table-column label="主题" min-width="200">
+    <el-table-column label="主题" min-width="180">
       <template #default="{ row }">
-        <div class="subject">{{ row.subject }}</div>
+        <div class="subject">
+          <span v-if="row.recurrenceType && row.recurrenceType !== 'NONE'" class="recurring-tag">↻ {{ recurrenceLabel(row.recurrenceType) }}</span>
+          {{ row.subject }}
+        </div>
         <div class="remark" v-if="row.remark">{{ row.remark }}</div>
       </template>
     </el-table-column>
@@ -98,6 +101,13 @@ function canCancel(row: Booking) {
   return !isPast(row.startTime)
 }
 
+function recurrenceLabel(type?: string) {
+  const map: Record<string, string> = {
+    DAILY: '每天', WEEKLY: '每周', WORKDAY: '工作日', MONTHLY: '每月',
+  }
+  return type ? (map[type] ?? type) : ''
+}
+
 void props
 </script>
 
@@ -119,6 +129,16 @@ void props
 
 .subject {
   font-weight: 500;
+}
+
+.recurring-tag {
+  font-size: 11px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 4px;
+  white-space: nowrap;
 }
 
 .remark {
