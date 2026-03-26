@@ -3,7 +3,7 @@ package com.meetr.domain.service;
 import com.meetr.domain.entity.Booking;
 import com.meetr.domain.entity.MeetingRoom;
 import com.meetr.domain.entity.RoomConfig;
-import com.meetr.domain.repository.BookingRepository;
+import com.meetr.mapper.BookingMapper;
 import com.meetr.domain.vo.RuleViolation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ public class BookingRuleService {
     private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
     private static final ZoneOffset UTC = ZoneOffset.UTC;
 
-    private final BookingRepository bookingRepository;
+    private final BookingMapper bookingMapper;
 
     public List<RuleViolation> validate(Booking booking, MeetingRoom room, RoomConfig config) {
         List<RuleViolation> violations = new ArrayList<>();
@@ -65,7 +65,7 @@ public class BookingRuleService {
         LocalDate date = bookingStart.toLocalDate();
         long dayStartMs = date.atStartOfDay(BEIJING).toInstant().toEpochMilli();
         long dayEndMs = date.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
-        long dayBookings = bookingRepository.countActiveBookingsOnDay(
+        long dayBookings = bookingMapper.countActiveBookingsOnDay(
             booking.getBookerId(),
             dayStartMs,
             dayEndMs,

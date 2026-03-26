@@ -5,8 +5,8 @@ import com.meetr.application.dto.SaveRoomConfigRequest;
 import com.meetr.domain.entity.MeetingRoom;
 import com.meetr.domain.entity.RoomConfig;
 import com.meetr.domain.enums.RoomStatus;
-import com.meetr.domain.repository.MeetingRoomRepository;
-import com.meetr.domain.repository.RoomConfigRepository;
+import com.meetr.mapper.MeetingRoomMapper;
+import com.meetr.mapper.RoomConfigMapper;
 import com.meetr.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,13 +18,13 @@ import java.time.LocalTime;
 @RequiredArgsConstructor
 public class RoomConfigApplicationService {
 
-    private final RoomConfigRepository roomConfigRepository;
-    private final MeetingRoomRepository meetingRoomRepository;
+    private final RoomConfigMapper roomConfigMapper;
+    private final MeetingRoomMapper meetingRoomMapper;
 
     public RoomConfig getEffectiveConfigEntity(Long roomId) {
         if (roomId != null) {
-            return roomConfigRepository.findFirstByRoomId(roomId)
-                .orElseGet(this::getGlobalConfigEntity);
+            RoomConfig config = roomConfigMapper.findFirstByRoomId(roomId);
+            return config != null ? config : getGlobalConfigEntity();
         }
         return getGlobalConfigEntity();
     }
@@ -42,13 +42,16 @@ public class RoomConfigApplicationService {
     @Transactional
     public RoomConfigDTO save(SaveRoomConfigRequest request) {
         validateRequest(request);
-        if (request.getRoomId() != null && !meetingRoomRepository.existsById(request.getRoomId())) {
+        if (request.getRoomId() != null && !meetingRoomMapper.existsById(request.getRoomId())) {
             throw new BusinessException(40001, "会议室不存在");
         }
 
         RoomConfig config = request.getRoomId() == null
-            ? roomConfigRepository.findFirstByRoomIdIsNull().orElseGet(RoomConfig::new)
-            : roomConfigRepository.findFirstByRoomId(request.getRoomId()).orElseGet(RoomConfig::new);
+            ? roomConfigMapper.findFirstByRoomIdIsNull()
+            : roomConfigMapper.findFirstByRoomId(request.getRoomId());
+        if (config == null) {
+            config = new RoomConfig();
+        }
 
         config.setRoomId(request.getRoomId());
         config.setResolution(request.getResolution());
@@ -63,12 +66,21 @@ public class RoomConfigApplicationService {
         config.setMaxPerWeek(request.getMaxPerWeek());
         config.setApprovalRequired(Boolean.TRUE.equals(request.getApprovalRequired()));
         config.setStatus(request.getStatus());
-        return toDto(roomConfigRepository.save(config));
+        if (config.getId() == null) {
+            config.initTimestampsForInsert();
+            roomConfigMapper.insert(config);
+        } else {
+            config.touchForUpdate();
+            roomConfigMapper.update(config);
+        }
+        return toDto(config);
     }
 
     public RoomConfig getGlobalConfigEntity() {
-        RoomConfig config = roomConfigRepository.findFirstByRoomIdIsNull()
-            .orElseThrow(() -> new BusinessException(50001, "全局预约规则不存在"));
+        RoomConfig config = roomConfigMapper.findFirstByRoomIdIsNull();
+        if (config == null) {
+            throw new BusinessException(50001, "全局预约规则不存在");
+        }
         return config;
     }
 

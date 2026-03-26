@@ -2,7 +2,7 @@ package com.meetr.domain.service;
 
 import com.meetr.domain.entity.Booking;
 import com.meetr.domain.entity.RoomConfig;
-import com.meetr.domain.repository.BookingRepository;
+import com.meetr.mapper.BookingMapper;
 import com.meetr.domain.vo.TimeSlot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ public class ConflictCheckService {
     /** UTC */
     private static final ZoneOffset UTC = ZoneOffset.UTC;
 
-    private final BookingRepository bookingRepository;
+    private final BookingMapper bookingMapper;
 
     /**
      * 检查时间冲突，参数和返回值统一用 LocalDateTime（北京时间），
@@ -32,7 +32,7 @@ public class ConflictCheckService {
         // 把 LocalDateTime 当作北京时间，转为 UTC 毫秒
         long newStartMs = toUtcMillis(slot.start());
         long newEndMs = toUtcMillis(slot.end());
-        List<Booking> conflicts = bookingRepository.findConflicting(roomId, newStartMs, newEndMs, excludeBookingId);
+        List<Booking> conflicts = bookingMapper.findConflicting(roomId, newStartMs, newEndMs, excludeBookingId);
         return new ConflictResult(!conflicts.isEmpty(), conflicts);
     }
 

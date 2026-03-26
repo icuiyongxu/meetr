@@ -1,7 +1,15 @@
 package com.meetr.config;
 
-import com.meetr.domain.entity.*;
-import com.meetr.domain.repository.*;
+import com.meetr.domain.entity.SysPermission;
+import com.meetr.domain.entity.SysRole;
+import com.meetr.domain.entity.SysRolePermission;
+import com.meetr.domain.entity.SysUser;
+import com.meetr.domain.entity.SysUserRole;
+import com.meetr.mapper.SysPermissionMapper;
+import com.meetr.mapper.SysRoleMapper;
+import com.meetr.mapper.SysRolePermissionMapper;
+import com.meetr.mapper.SysUserMapper;
+import com.meetr.mapper.SysUserRoleMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -16,15 +24,14 @@ import java.util.Map;
 @Slf4j
 public class AuthDataInitializer implements CommandLineRunner {
 
-    private final SysRoleRepository sysRoleRepository;
-    private final SysUserRepository sysUserRepository;
-    private final SysUserRoleRepository sysUserRoleRepository;
-    private final SysPermissionRepository sysPermissionRepository;
-    private final SysRolePermissionRepository sysRolePermissionRepository;
+    private final SysRoleMapper sysRoleMapper;
+    private final SysUserMapper sysUserMapper;
+    private final SysUserRoleMapper sysUserRoleMapper;
+    private final SysPermissionMapper sysPermissionMapper;
+    private final SysRolePermissionMapper sysRolePermissionMapper;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    /** 权限定义 */
     private static final List<PermissionDef> PERMISSIONS = List.of(
         new PermissionDef("room:view", "查看会议室"),
         new PermissionDef("room:manage", "管理会议室"),
@@ -40,7 +47,6 @@ public class AuthDataInitializer implements CommandLineRunner {
         new PermissionDef("config:manage", "管理配置")
     );
 
-    /** 角色 → 权限映射 */
     private static final Map<String, List<String>> ROLE_PERMISSIONS = Map.of(
         "ADMIN", List.of(
             "room:view", "room:manage",
@@ -57,57 +63,55 @@ public class AuthDataInitializer implements CommandLineRunner {
         )
     );
 
-    private record PermissionDef(String code, String name) {}
+    private record PermissionDef(String code, String name) {
+    }
 
     @Override
     public void run(String... args) {
-        // 1. 创建权限
         for (PermissionDef pd : PERMISSIONS) {
-            if (sysPermissionRepository.findByCode(pd.code).isEmpty()) {
-                SysPermission p = SysPermission.builder()
+            if (sysPermissionMapper.findByCode(pd.code) == null) {
+                sysPermissionMapper.insert(SysPermission.builder()
                     .code(pd.code)
                     .name(pd.name)
                     .description(pd.name)
-                    .build();
-                sysPermissionRepository.save(p);
+                    .build());
             }
         }
 
-        // 2. 创建角色
-        SysRole adminRole = sysRoleRepository.findByCode("ADMIN").orElseGet(() -> {
-            SysRole r = new SysRole();
-            r.setCode("ADMIN");
-            r.setName("管理员");
-            r.setDescription("系统管理员，拥有全部权限");
-            return sysRoleRepository.save(r);
-        });
+        SysRole adminRole = sysRoleMapper.findByCode("ADMIN");
+        if (adminRole == null) {
+            adminRole = new SysRole();
+            adminRole.setCode("ADMIN");
+            adminRole.setName("管理员");
+            adminRole.setDescription("系统管理员，拥有全部权限");
+            sysRoleMapper.insert(adminRole);
+        }
 
-        SysRole userRole = sysRoleRepository.findByCode("USER").orElseGet(() -> {
-            SysRole r = new SysRole();
-            r.setCode("USER");
-            r.setName("普通用户");
-            r.setDescription("普通用户，可预约会议室");
-            return sysRoleRepository.save(r);
-        });
+        SysRole userRole = sysRoleMapper.findByCode("USER");
+        if (userRole == null) {
+            userRole = new SysRole();
+            userRole.setCode("USER");
+            userRole.setName("普通用户");
+            userRole.setDescription("普通用户，可预约会议室");
+            sysRoleMapper.insert(userRole);
+        }
 
-        // 3. 绑定角色-权限
         for (Map.Entry<String, List<String>> entry : ROLE_PERMISSIONS.entrySet()) {
-            String roleCode = entry.getKey();
-            SysRole role = sysRoleRepository.findByCode(roleCode).orElse(null);
-            if (role == null) continue;
+            SysRole role = sysRoleMapper.findByCode(entry.getKey());
+            if (role == null) {
+                continue;
+            }
             for (String permCode : entry.getValue()) {
-                sysPermissionRepository.findByCode(permCode).ifPresent(perm -> {
-                    if (sysRolePermissionRepository.findByRoleIdAndPermissionId(role.getId(), perm.getId()).isEmpty()) {
-                        SysRolePermission rp = new SysRolePermission();
-                        rp.setRole(role);
-                        rp.setPermission(perm);
-                        sysRolePermissionRepository.save(rp);
-                    }
-                });
+                SysPermission perm = sysPermissionMapper.findByCode(permCode);
+                if (perm != null && sysRolePermissionMapper.findByRoleIdAndPermissionId(role.getId(), perm.getId()) == null) {
+                    SysRolePermission relation = new SysRolePermission();
+                    relation.setRoleId(role.getId());
+                    relation.setPermissionId(perm.getId());
+                    sysRolePermissionMapper.insert(relation);
+                }
             }
         }
 
-        // 4. 创建初始管理员
         String adminUserId = System.getenv("MEETR_ADMIN_USER_ID");
         if (adminUserId == null || adminUserId.isBlank()) {
             adminUserId = "admin";
@@ -117,7 +121,7 @@ public class AuthDataInitializer implements CommandLineRunner {
             adminPassword = "admin123";
         }
 
-        if (!sysUserRepository.existsByUserId(adminUserId)) {
+        if (!sysUserMapper.existsByUserId(adminUserId)) {
             SysUser adminUser = SysUser.builder()
                 .userId(adminUserId)
                 .name("管理员")
@@ -125,23 +129,22 @@ public class AuthDataInitializer implements CommandLineRunner {
                 .status("ACTIVE")
                 .createdAtMs(System.currentTimeMillis())
                 .build();
-            adminUser = sysUserRepository.save(adminUser);
+            sysUserMapper.insert(adminUser);
 
-            SysUserRole ur = new SysUserRole();
-            ur.setUser(adminUser);
-            ur.setRole(adminRole);
-            sysUserRoleRepository.save(ur);
+            SysUserRole relation = new SysUserRole();
+            relation.setUserId(adminUser.getId());
+            relation.setRoleId(adminRole.getId());
+            sysUserRoleMapper.insert(relation);
 
             log.info("创建初始管理员: userId={}, password={}", adminUserId, adminPassword);
         }
 
-        // 5. 给所有已存在但未分配角色的用户分配 USER 角色
-        for (SysUser u : sysUserRepository.findAll()) {
-            if (sysUserRoleRepository.findByUserId(u.getId()).isEmpty()) {
-                SysUserRole ur = new SysUserRole();
-                ur.setUser(u);
-                ur.setRole(userRole);
-                sysUserRoleRepository.save(ur);
+        for (SysUser user : sysUserMapper.findAll()) {
+            if (sysUserRoleMapper.findByUserId(user.getId()).isEmpty()) {
+                SysUserRole relation = new SysUserRole();
+                relation.setUserId(user.getId());
+                relation.setRoleId(userRole.getId());
+                sysUserRoleMapper.insert(relation);
             }
         }
 

@@ -7,7 +7,7 @@
     <el-aside width="200px">
       <div class="logo-area">Meetr</div>
       <el-menu :default-active="route.path" router>
-        <el-menu-item index="/">
+        <el-menu-item index="/dashboard">
           <span>会议室日历</span>
         </el-menu-item>
         <el-menu-item index="/my-bookings">
@@ -70,7 +70,7 @@ function logout() {
 }
 
 const titles: Record<string, string> = {
-  '/': '会议室日历',
+  '/dashboard': '会议室日历',
   '/my-bookings': '我的预约',
   '/admin/config': '规则配置',
   '/admin/users': '用户管理',

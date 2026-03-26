@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meetr.mapper.BookingMapper">
+
+    <resultMap id="BookingResultMap" type="com.meetr.domain.entity.Booking">
+        <id property="id" column="id"/>
+        <result property="roomId" column="room_id"/>
+        <result property="subject" column="subject"/>
+        <result property="bookerId" column="booker_id"/>
+        <result property="bookerName" column="booker_name"/>
+        <result property="startTimeMs" column="start_time_ms"/>
+        <result property="endTimeMs" column="end_time_ms"/>
+        <result property="attendeeCount" column="attendee_count"/>
+        <result property="status" column="status" javaType="com.meetr.domain.enums.BookingStatus"/>
+        <result property="approvalStatus" column="approval_status" javaType="com.meetr.domain.enums.ApprovalStatus"/>
+        <result property="remark" column="remark"/>
+        <result property="version" column="version"/>
+        <result property="recurrenceType" column="recurrence_type" javaType="com.meetr.domain.enums.RecurrenceType"/>
+        <result property="recurrenceEndDate" column="recurrence_end_date" javaType="java.time.LocalDate" jdbcType="DATE"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="seriesIndex" column="series_index"/>
+        <result property="createdAtMs" column="created_at_ms"/>
+        <result property="updatedAtMs" column="updated_at_ms"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+        attendee_count, status, approval_status, remark, version, recurrence_type,
+        recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+    </sql>
+
+    <insert id="insert" parameterType="com.meetr.domain.entity.Booking" useGeneratedKeys="true" keyProperty="id">
+        insert into booking (
+            room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+            attendee_count, status, approval_status, remark, version, recurrence_type,
+            recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        ) values (
+            #{roomId}, #{subject}, #{bookerId}, #{bookerName}, #{startTimeMs}, #{endTimeMs},
+            #{attendeeCount}, #{status}, #{approvalStatus}, #{remark}, #{version}, #{recurrenceType},
+            #{recurrenceEndDate,jdbcType=DATE}, #{parentId}, #{seriesIndex}, #{createdAtMs}, #{updatedAtMs}
+        )
+    </insert>
+
+    <select id="findConflicting" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        where room_id = #{roomId}
+          and status &lt;&gt; 'CANCELED'
+          and approval_status &lt;&gt; 'REJECTED'
+          and start_time_ms &lt; #{newEndMs}
+          and end_time_ms &gt; #{newStartMs}
+          <if test="excludeBookingId != null">
+            and id &lt;&gt; #{excludeBookingId}
+          </if>
+        order by start_time_ms asc
+    </select>
+
+    <select id="findByBookerIdOrderByStartTimeMsDesc" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        where booker_id = #{bookerId}
+        order by start_time_ms desc
+    </select>
+
+    <select id="findTodayBookings" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        where booker_id = #{bookerId}
+          and start_time_ms &gt;= #{dayStartMs}
+          and start_time_ms &lt; #{dayEndMs}
+          and status &lt;&gt; 'CANCELED'
+        order by start_time_ms asc
+    </select>
+
+    <select id="countActiveBookingsOnDay" resultType="long">
+        select count(1)
+        from booking
+        where booker_id = #{bookerId}
+          and status &lt;&gt; 'CANCELED'
+          and approval_status &lt;&gt; 'REJECTED'
+          and start_time_ms &gt;= #{dayStartMs}
+          and start_time_ms &lt; #{dayEndMs}
+          <if test="excludeBookingId != null">
+            and id &lt;&gt; #{excludeBookingId}
+          </if>
+    </select>
+
+    <select id="findByRoomIdAndDate" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        where room_id = #{roomId}
+          and start_time_ms &lt; #{dayEndMs}
+          and end_time_ms &gt;= #{dayStartMs}
+        order by start_time_ms asc
+    </select>
+
+    <select id="searchBookings" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        <where>
+            <if test="bookerId != null and bookerId != ''">
+                and booker_id = #{bookerId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                and lower(subject) like concat('%', lower(#{keyword}), '%')
+            </if>
+            <if test="roomId != null">
+                and room_id = #{roomId}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+            <if test="startTimeFrom != null">
+                and start_time_ms &gt;= #{startTimeFrom}
+            </if>
+            <if test="startTimeTo != null">
+                and start_time_ms &lt;= #{startTimeTo}
+            </if>
+        </where>
+        order by start_time_ms desc
+    </select>
+
+</mapper>

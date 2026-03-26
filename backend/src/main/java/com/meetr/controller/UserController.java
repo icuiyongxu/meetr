@@ -1,7 +1,7 @@
 package com.meetr.controller;
 
 import com.meetr.domain.entity.SysUser;
-import com.meetr.domain.repository.SysUserRepository;
+import com.meetr.mapper.SysUserMapper;
 import com.meetr.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -13,14 +13,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final SysUserRepository sysUserRepository;
+    private final SysUserMapper sysUserMapper;
     private final AuthService authService;
 
     public record UserDTO(Long id, String userId, String name, String status, List<String> roles) {}
 
     @GetMapping
     public ApiResponse<List<UserDTO>> list() {
-        return ApiResponse.ok(sysUserRepository.findAll().stream().map(u -> {
+        return ApiResponse.ok(sysUserMapper.findAll().stream().map(u -> {
             List<String> roles = authService.getUserRoles(u.getUserId());
             return new UserDTO(u.getId(), u.getUserId(), u.getName(), u.getStatus(), roles);
         }).toList());

@@ -78,7 +78,7 @@ async function handleLogin() {
     store.isAdmin = data.roles?.includes('ADMIN') ?? false
     if (data.name) store.setUserName(data.name)
     ElMessage.success(`欢迎，${data.name || data.userId}`)
-    router.push('/')
+    router.push('/dashboard')
   } catch (e: any) {
     ElMessage.error(e?.message || '登录失败')
   } finally {

@@ -13,8 +13,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,10 +53,11 @@ public class BookingController {
     }
 
     @GetMapping("/mine")
-    public ApiResponse<Page<BookingDTO>> mine(@RequestParam String bookerId,
-                                              @RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.ok(bookingApplicationService.getMyBookings(bookerId, PageRequest.of(page, size)));
+    public ApiResponse<BookingApplicationService.PageResult<BookingDTO>> mine(
+            @RequestParam String bookerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.ok(bookingApplicationService.getMyBookings(bookerId, page, size));
     }
 
     @GetMapping("/today")
@@ -68,7 +67,7 @@ public class BookingController {
 
     @RequirePermission("booking:view")
     @GetMapping("/search")
-    public ApiResponse<Page<BookingDTO>> search(@ModelAttribute BookingSearchRequest request) {
+    public ApiResponse<BookingApplicationService.PageResult<BookingDTO>> search(@ModelAttribute BookingSearchRequest request) {
         if (request.getSize() <= 0) request.setSize(10);
         if (request.getSize() > 100) request.setSize(100);
         return ApiResponse.ok(bookingApplicationService.searchBookings(request));
@@ -81,11 +80,8 @@ public class BookingController {
 
     @Data
     public static class CancelBookingRequest {
-
         @NotBlank
         private String operatorId;
-
-        /** 是否取消整个系列；默认 false 只取消当前 */
         private Boolean cancelSeries;
     }
 }

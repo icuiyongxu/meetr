@@ -2,7 +2,7 @@ package com.meetr.config;
 
 import com.meetr.domain.entity.RoomConfig;
 import com.meetr.domain.enums.RoomStatus;
-import com.meetr.domain.repository.RoomConfigRepository;
+import com.meetr.mapper.RoomConfigMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationRunner;
@@ -15,7 +15,7 @@ import java.util.TimeZone;
 @RequiredArgsConstructor
 public class DefaultRoomConfigInitializer {
 
-    private final RoomConfigRepository roomConfigRepository;
+    private final RoomConfigMapper roomConfigMapper;
 
     @PostConstruct
     public void initTimezone() {
@@ -24,8 +24,13 @@ public class DefaultRoomConfigInitializer {
 
     @Bean
     public ApplicationRunner defaultRoomConfigRunner() {
-        return args -> roomConfigRepository.findFirstByRoomIdIsNull()
-            .orElseGet(() -> roomConfigRepository.save(defaultConfig()));
+        return args -> {
+            if (roomConfigMapper.findFirstByRoomIdIsNull() == null) {
+                RoomConfig config = defaultConfig();
+                config.initTimestampsForInsert();
+                roomConfigMapper.insert(config);
+            }
+        };
     }
 
     private RoomConfig defaultConfig() {

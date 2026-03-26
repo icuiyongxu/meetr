@@ -4,7 +4,6 @@ import com.meetr.controller.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -38,12 +37,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Object>> handleConstraintViolationException(ConstraintViolationException ex) {
         return ResponseEntity.badRequest().body(ApiResponse.error(40000, ex.getMessage(), null));
-    }
-
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<ApiResponse<Object>> handleOptimisticLockException(ObjectOptimisticLockingFailureException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-            .body(ApiResponse.error(40902, "预约已被其他人修改，请刷新后重试", null));
     }
 
     @ExceptionHandler(Exception.class)

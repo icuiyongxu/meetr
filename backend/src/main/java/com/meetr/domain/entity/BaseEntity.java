@@ -1,38 +1,27 @@
 package com.meetr.domain.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import lombok.Data;
 
-import java.time.ZoneId;
-
 @Data
-@MappedSuperclass
 public abstract class BaseEntity {
 
-    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
-
-    /** 存北京时间的 UTC 毫秒 */
-    @Column(nullable = false, updatable = false)
+    /** 存 UTC 毫秒 */
     private Long createdAtMs;
 
-    /** 存北京时间的 UTC 毫秒 */
-    @Column(nullable = false)
+    /** 存 UTC 毫秒 */
     private Long updatedAtMs;
 
-    @PrePersist
-    public void prePersist() {
+    public void initTimestampsForInsert() {
         long now = System.currentTimeMillis();
         if (createdAtMs == null) {
             createdAtMs = now;
         }
-        updatedAtMs = now;
+        if (updatedAtMs == null) {
+            updatedAtMs = now;
+        }
     }
 
-    @PreUpdate
-    public void preUpdate() {
+    public void touchForUpdate() {
         updatedAtMs = System.currentTimeMillis();
     }
 }

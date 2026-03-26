@@ -3,7 +3,7 @@ package com.meetr.application;
 import com.meetr.application.dto.BuildingDTO;
 import com.meetr.application.dto.BuildingUpsertRequest;
 import com.meetr.domain.entity.Building;
-import com.meetr.domain.repository.BuildingRepository;
+import com.meetr.mapper.BuildingMapper;
 import com.meetr.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,10 +15,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BuildingApplicationService {
 
-    private final BuildingRepository buildingRepository;
+    private final BuildingMapper buildingMapper;
 
     public List<BuildingDTO> list() {
-        return buildingRepository.findAllByOrderBySortNoAscIdAsc().stream()
+        return buildingMapper.findAllByOrderBySortNoAscIdAsc().stream()
             .map(this::toDto)
             .toList();
     }
@@ -27,15 +27,21 @@ public class BuildingApplicationService {
     public BuildingDTO create(BuildingUpsertRequest request) {
         Building building = new Building();
         apply(request, building);
-        return toDto(buildingRepository.save(building));
+        building.touchForUpdate();
+        buildingMapper.update(building);
+        return toDto(building);
     }
 
     @Transactional
     public BuildingDTO update(Long id, BuildingUpsertRequest request) {
-        Building building = buildingRepository.findById(id)
-            .orElseThrow(() -> new BusinessException(40001, "楼栋不存在"));
+        Building building = buildingMapper.findById(id);
+        if (building == null) {
+            throw new BusinessException(40001, "楼栋不存在");
+        }
         apply(request, building);
-        return toDto(buildingRepository.save(building));
+        building.touchForUpdate();
+        buildingMapper.update(building);
+        return toDto(building);
     }
 
     private void apply(BuildingUpsertRequest request, Building building) {

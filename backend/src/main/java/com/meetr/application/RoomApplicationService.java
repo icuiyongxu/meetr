@@ -6,8 +6,8 @@ import com.meetr.application.dto.RoomUpsertRequest;
 import com.meetr.domain.entity.Building;
 import com.meetr.domain.entity.MeetingRoom;
 import com.meetr.domain.enums.BuildingStatus;
-import com.meetr.domain.repository.BuildingRepository;
-import com.meetr.domain.repository.MeetingRoomRepository;
+import com.meetr.mapper.BuildingMapper;
+import com.meetr.mapper.MeetingRoomMapper;
 import com.meetr.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,11 +25,11 @@ public class RoomApplicationService {
 
     private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
-    private final MeetingRoomRepository meetingRoomRepository;
-    private final BuildingRepository buildingRepository;
+    private final MeetingRoomMapper meetingRoomMapper;
+    private final BuildingMapper buildingMapper;
 
     public List<RoomDTO> list(Long buildingId, String floor, Integer capacity, com.meetr.domain.enums.RoomStatus status, String keyword) {
-        return enrich(meetingRoomRepository.search(buildingId, normalize(floor), capacity, status, normalize(keyword)));
+        return enrich(meetingRoomMapper.search(buildingId, normalize(floor), capacity, status, normalize(keyword)));
     }
 
     public List<RoomDTO> available(LocalDateTime startTime, LocalDateTime endTime, Long buildingId, Integer capacity) {
@@ -39,49 +39,61 @@ public class RoomApplicationService {
         // Convert LocalDateTime (Beijing) to UTC millis
         long startMs = startTime.atZone(BEIJING).toInstant().toEpochMilli();
         long endMs = endTime.atZone(BEIJING).toInstant().toEpochMilli();
-        return enrich(meetingRoomRepository.findAvailable(startMs, endMs, buildingId, capacity)).stream()
+        return enrich(meetingRoomMapper.findAvailable(startMs, endMs, buildingId, capacity)).stream()
             .filter(room -> {
-                Building building = buildingRepository.findById(room.getBuildingId()).orElse(null);
+                Building building = buildingMapper.findById(room.getBuildingId());
                 return building != null && building.getStatus() == BuildingStatus.ACTIVE;
             })
             .toList();
     }
 
     public RoomDTO getById(Long id) {
-        MeetingRoom room = meetingRoomRepository.findById(id)
-            .orElseThrow(() -> new BusinessException(40001, "会议室不存在"));
+        MeetingRoom room = meetingRoomMapper.findById(id);
+        if (room == null) {
+            throw new BusinessException(40001, "会议室不存在");
+        }
         return toDto(room, getBuildingMap(List.of(room)).get(room.getBuildingId()));
     }
 
     @Transactional
     public RoomDTO create(RoomUpsertRequest request) {
         Building building = requireBuilding(request.getBuildingId());
-        if (meetingRoomRepository.existsByBuildingIdAndNameIgnoreCase(request.getBuildingId(), request.getName())) {
+        if (meetingRoomMapper.existsByBuildingIdAndNameIgnoreCase(request.getBuildingId(), request.getName())) {
             throw new BusinessException(40002, "同一楼栋下会议室名称不能重复");
         }
         MeetingRoom room = new MeetingRoom();
         apply(room, request);
-        return toDto(meetingRoomRepository.save(room), building);
+        room.initTimestampsForInsert();
+        meetingRoomMapper.insert(room);
+        return toDto(room, building);
     }
 
     @Transactional
     public RoomDTO update(Long id, RoomUpsertRequest request) {
         Building building = requireBuilding(request.getBuildingId());
-        MeetingRoom room = meetingRoomRepository.findById(id)
-            .orElseThrow(() -> new BusinessException(40001, "会议室不存在"));
-        if (meetingRoomRepository.existsByBuildingIdAndNameIgnoreCaseAndIdNot(request.getBuildingId(), request.getName(), id)) {
+        MeetingRoom room = meetingRoomMapper.findById(id);
+        if (room == null) {
+            throw new BusinessException(40001, "会议室不存在");
+        }
+        if (meetingRoomMapper.existsByBuildingIdAndNameIgnoreCaseAndIdNot(request.getBuildingId(), request.getName(), id)) {
             throw new BusinessException(40002, "同一楼栋下会议室名称不能重复");
         }
         apply(room, request);
-        return toDto(meetingRoomRepository.save(room), building);
+        room.touchForUpdate();
+        meetingRoomMapper.update(room);
+        return toDto(room, building);
     }
 
     @Transactional
     public RoomDTO updateStatus(Long id, RoomStatusUpdateRequest request) {
-        MeetingRoom room = meetingRoomRepository.findById(id)
-            .orElseThrow(() -> new BusinessException(40001, "会议室不存在"));
+        MeetingRoom room = meetingRoomMapper.findById(id);
+        if (room == null) {
+            throw new BusinessException(40001, "会议室不存在");
+        }
         room.setStatus(request.getStatus());
-        return toDto(meetingRoomRepository.save(room), requireBuilding(room.getBuildingId()));
+        room.touchForUpdate();
+        meetingRoomMapper.update(room);
+        return toDto(room, requireBuilding(room.getBuildingId()));
     }
 
     private List<RoomDTO> enrich(List<MeetingRoom> rooms) {
@@ -94,7 +106,9 @@ public class RoomApplicationService {
     private Map<Long, Building> getBuildingMap(List<MeetingRoom> rooms) {
         List<Long> buildingIds = rooms.stream().map(MeetingRoom::getBuildingId).distinct().toList();
         Map<Long, Building> map = new HashMap<>();
-        buildingRepository.findAllById(buildingIds).forEach(building -> map.put(building.getId(), building));
+        if (!buildingIds.isEmpty()) {
+            buildingMapper.findAllByIds(buildingIds).forEach(building -> map.put(building.getId(), building));
+        }
         return map;
     }
 
@@ -124,8 +138,11 @@ public class RoomApplicationService {
     }
 
     private Building requireBuilding(Long buildingId) {
-        return buildingRepository.findById(buildingId)
-            .orElseThrow(() -> new BusinessException(40001, "楼栋不存在"));
+        Building building = buildingMapper.findById(buildingId);
+        if (building == null) {
+            throw new BusinessException(40001, "楼栋不存在");
+        }
+        return building;
     }
 
     private String normalize(String value) {

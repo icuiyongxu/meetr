@@ -358,7 +358,7 @@ function onDateChange() {
 }
 
 function onSuccess() {
-  router.push('/')
+  router.push('/dashboard')
 }
 
 onMounted(async () => {

@@ -1,50 +1,31 @@
 package com.meetr.application;
 
-import com.meetr.application.dto.BookingAttendeeDTO;
-import com.meetr.application.dto.BookingConflictDTO;
-import com.meetr.application.dto.BookingDTO;
-import com.meetr.application.dto.BookingResult;
-import com.meetr.application.dto.BookingSearchRequest;
-import com.meetr.application.dto.ConflictCheckRequest;
-import com.meetr.application.dto.ConflictCheckResponse;
-import com.meetr.application.dto.CreateBookingCommand;
-import com.meetr.application.dto.UpdateBookingCommand;
-import com.meetr.domain.entity.Booking;
-import com.meetr.domain.entity.BookingAttendee;
-import com.meetr.domain.entity.BookingOperationLog;
-import com.meetr.domain.entity.Building;
-import com.meetr.domain.entity.MeetingRoom;
-import com.meetr.domain.entity.RoomConfig;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import com.meetr.application.dto.*;
+import com.meetr.domain.entity.*;
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
 import com.meetr.domain.enums.BuildingStatus;
 import com.meetr.domain.enums.RecurrenceType;
 import com.meetr.domain.enums.RoomStatus;
-import com.meetr.domain.repository.BookingAttendeeRepository;
-import com.meetr.domain.repository.BookingOperationLogRepository;
-import com.meetr.domain.repository.BookingRepository;
-import com.meetr.domain.repository.BuildingRepository;
-import com.meetr.domain.repository.MeetingRoomRepository;
 import com.meetr.domain.service.BookingRuleService;
 import com.meetr.domain.service.ConflictCheckService;
 import com.meetr.domain.service.RecurrenceExpander;
 import com.meetr.domain.vo.RuleViolation;
 import com.meetr.domain.vo.TimeSlot;
 import com.meetr.exception.BusinessException;
+import com.meetr.mapper.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -52,11 +33,11 @@ public class BookingApplicationService {
 
     private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
-    private final BookingRepository bookingRepository;
-    private final BookingAttendeeRepository bookingAttendeeRepository;
-    private final BookingOperationLogRepository bookingOperationLogRepository;
-    private final MeetingRoomRepository meetingRoomRepository;
-    private final BuildingRepository buildingRepository;
+    private final BookingMapper bookingMapper;
+    private final BookingAttendeeMapper bookingAttendeeMapper;
+    private final BookingOperationLogMapper bookingOperationLogMapper;
+    private final MeetingRoomMapper meetingRoomMapper;
+    private final BuildingMapper buildingMapper;
     private final RoomConfigApplicationService roomConfigApplicationService;
     private final ConflictCheckService conflictCheckService;
     private final BookingRuleService bookingRuleService;
@@ -83,66 +64,60 @@ public class BookingApplicationService {
             return BookingResult.conflicted(toConflictDtos(conflict.conflictingBookings()));
         }
 
-        // 保存主预约
-        Booking saved = bookingRepository.save(master);
-        syncAttendees(saved.getId(), cmd.getAttendeeIds());
-        saveLog(saved.getId(), "CREATE", cmd.getBookerId(), saved.getBookerName(), "创建预约");
+        persistBooking(master);
 
-        // 展开并生成子实例
+        syncAttendees(master.getId(), cmd.getAttendeeIds());
+        saveLog(master.getId(), "CREATE", cmd.getBookerId(), master.getBookerName(), "创建预约");
+
         RecurrenceType recType = cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE;
         if (recType != RecurrenceType.NONE && cmd.getRecurrenceEndDate() != null) {
             List<long[]> instances = recurrenceExpander.expand(
                 alignedSlot.start(), alignedSlot.end(), recType, cmd.getRecurrenceEndDate());
-            int generated = 0;
             for (int i = 0; i < instances.size(); i++) {
                 long[] inst = instances.get(i);
                 LocalDateTime s = LocalDateTime.ofEpochSecond(inst[0] / 1000, 0, ZoneOffset.UTC);
                 LocalDateTime e = LocalDateTime.ofEpochSecond(inst[1] / 1000, 0, ZoneOffset.UTC);
                 TimeSlot instSlot = conflictCheckService.alignToSlot(new TimeSlot(s, e), config);
 
-                Booking child = buildBooking(cmd, room, instSlot, config, saved.getId(), i + 2);
+                Booking child = buildBooking(cmd, room, instSlot, config, master.getId(), i + 2);
                 List<RuleViolation> childViolations = bookingRuleService.validate(child, room, config);
-                if (!childViolations.isEmpty()) continue; // 跳过不满足规则的实例
+                if (!childViolations.isEmpty()) continue;
 
                 ConflictCheckService.ConflictResult childConflict =
                     conflictCheckService.hasConflict(room.getId(), instSlot, null);
-                if (childConflict.conflict()) continue; // 跳过冲突的实例
+                if (childConflict.conflict()) continue;
 
-                Booking childSaved = bookingRepository.save(child);
-                syncAttendees(childSaved.getId(), cmd.getAttendeeIds());
-                generated++;
+                persistBooking(child);
+                syncAttendees(child.getId(), cmd.getAttendeeIds());
             }
-            // 提示主预约已含 seriesIndex=1
         }
 
-        return BookingResult.success(toDto(saved));
+        return BookingResult.success(toDto(master));
     }
 
     private Booking buildBooking(CreateBookingCommand cmd, MeetingRoom room, TimeSlot slot,
                                  RoomConfig config, Long parentId, int seriesIndex) {
-        Booking b = new Booking();
-        b.setRoomId(room.getId());
-        b.setSubject(cmd.getSubject());
-        b.setBookerId(cmd.getBookerId());
-        b.setBookerName(cmd.getBookerName() == null || cmd.getBookerName().isBlank()
-            ? cmd.getBookerId() : cmd.getBookerName());
-        b.applyTimeSlot(slot);
-        b.setAttendeeCount(cmd.getAttendeeCount());
-        b.setRemark(cmd.getRemark());
-        b.setStatus(BookingStatus.BOOKED);
-        b.setApprovalStatus(
-            Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
-        b.setRecurrenceType(cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE);
-        b.setRecurrenceEndDate(cmd.getRecurrenceEndDate());
-        b.setParentId(parentId);
-        b.setSeriesIndex(seriesIndex);
-        return b;
+        Booking booking = new Booking();
+        booking.setRoomId(room.getId());
+        booking.setSubject(cmd.getSubject());
+        booking.setBookerId(cmd.getBookerId());
+        booking.setBookerName(cmd.getBookerName() == null || cmd.getBookerName().isBlank() ? cmd.getBookerId() : cmd.getBookerName());
+        booking.applyTimeSlot(slot);
+        booking.setAttendeeCount(cmd.getAttendeeCount());
+        booking.setRemark(cmd.getRemark());
+        booking.setStatus(BookingStatus.BOOKED);
+        booking.setApprovalStatus(Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
+        booking.setRecurrenceType(cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE);
+        booking.setRecurrenceEndDate(cmd.getRecurrenceEndDate());
+        booking.setParentId(parentId);
+        booking.setSeriesIndex(seriesIndex);
+        booking.setVersion(0L);
+        return booking;
     }
 
     @Transactional
     public BookingResult update(UpdateBookingCommand cmd) {
-        Booking booking = bookingRepository.findById(cmd.getBookingId())
-            .orElseThrow(() -> new BusinessException(40001, "预约不存在"));
+        Booking booking = requireBooking(cmd.getBookingId());
         assertOperator(booking, cmd.getOperatorId());
         if (booking.getStatus() == BookingStatus.CANCELED) {
             throw new BusinessException(40002, "已取消的预约不能修改");
@@ -167,44 +142,40 @@ public class BookingApplicationService {
             return BookingResult.conflicted(toConflictDtos(conflict.conflictingBookings()));
         }
 
-        Booking saved = bookingRepository.save(booking);
-        saveLog(saved.getId(), "UPDATE", cmd.getOperatorId(), cmd.getOperatorId(), "修改预约");
-        return BookingResult.success(toDto(saved));
+        updateBooking(booking);
+        saveLog(booking.getId(), "UPDATE", cmd.getOperatorId(), cmd.getOperatorId(), "修改预约");
+        return BookingResult.success(toDto(booking));
     }
 
     @Transactional
     public void cancel(Long bookingId, String operatorId, boolean cancelSeries) {
-        Booking booking = bookingRepository.findById(bookingId)
-            .orElseThrow(() -> new BusinessException(40001, "预约不存在"));
+        Booking booking = requireBooking(bookingId);
         assertOperator(booking, operatorId);
         try {
             booking.cancel();
         } catch (IllegalStateException ex) {
             throw new BusinessException(40002, "预约已取消");
         }
-        bookingRepository.save(booking);
+        updateBooking(booking);
         saveLog(booking.getId(), "CANCEL", operatorId, operatorId,
             cancelSeries ? "取消全系列预约" : "取消预约");
 
-        // 取消整个系列（同时取消所有子实例）
         if (cancelSeries) {
             if (booking.getParentId() != null) {
-                // 是子实例 → 取消同系列所有子实例
-                List<Booking> siblings = bookingRepository.findByParentIdOrderBySeriesIndexAsc(booking.getParentId());
+                List<Booking> siblings = bookingMapper.findByParentIdOrderBySeriesIndexAsc(booking.getParentId());
                 for (Booking sibling : siblings) {
                     if (sibling.getStatus() != BookingStatus.CANCELED) {
                         sibling.cancel();
-                        bookingRepository.save(sibling);
+                        updateBooking(sibling);
                         saveLog(sibling.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
                     }
                 }
             } else {
-                // 是主预约 → 取消所有子实例
-                List<Booking> children = bookingRepository.findByParentIdOrderBySeriesIndexAsc(booking.getId());
+                List<Booking> children = bookingMapper.findByParentIdOrderBySeriesIndexAsc(booking.getId());
                 for (Booking child : children) {
                     if (child.getStatus() != BookingStatus.CANCELED) {
                         child.cancel();
-                        bookingRepository.save(child);
+                        updateBooking(child);
                         saveLog(child.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
                     }
                 }
@@ -213,41 +184,38 @@ public class BookingApplicationService {
     }
 
     public BookingDTO getById(Long id) {
-        Booking booking = bookingRepository.findById(id)
-            .orElseThrow(() -> new BusinessException(40001, "预约不存在"));
-        return toDto(booking);
+        return toDto(requireBooking(id));
     }
 
-    public Page<BookingDTO> getMyBookings(String bookerId, Pageable pageable) {
-        return bookingRepository.findByBookerIdOrderByStartTimeMsDesc(bookerId, pageable)
-            .map(this::toDto);
+    public PageResult<BookingDTO> getMyBookings(String bookerId, int page, int size) {
+        PageHelper.startPage(page + 1, size);
+        List<Booking> bookings = bookingMapper.findByBookerIdOrderByStartTimeMsDesc(bookerId);
+        PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
+        List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
+        return new PageResult<>(dtos, pageInfo.getTotal(), page, size);
     }
 
     public List<BookingDTO> getTodayBookings(String bookerId) {
-        // 今天的 UTC 毫秒范围
         LocalDate today = LocalDate.now(BEIJING);
         long dayStartMs = today.atStartOfDay(BEIJING).toInstant().toEpochMilli();
         long dayEndMs = today.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
-        return bookingRepository.findTodayBookings(bookerId, dayStartMs, dayEndMs).stream()
+        return bookingMapper.findTodayBookings(bookerId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
     }
 
-    public Page<BookingDTO> searchBookings(BookingSearchRequest req) {
-        return bookingRepository.searchBookings(
-            req.getBookerId(),
-            req.getKeyword(),
-            req.getRoomId(),
-            req.getStatus(),
-            req.getStartTimeFrom(),
-            req.getStartTimeTo(),
-            org.springframework.data.domain.PageRequest.of(req.getPage(), req.getSize())
-        ).map(this::toDto);
+    public PageResult<BookingDTO> searchBookings(BookingSearchRequest req) {
+        PageHelper.startPage(req.getPage() + 1, req.getSize());
+        List<Booking> bookings = bookingMapper.searchBookings(
+            req.getBookerId(), req.getKeyword(), req.getRoomId(),
+            req.getStatus(), req.getStartTimeFrom(), req.getStartTimeTo());
+        PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
+        List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
+        return new PageResult<>(dtos, pageInfo.getTotal(), req.getPage(), req.getSize());
     }
 
-    /** 查询指定会议室指定日期的全部预约（供日历视图使用） */
     public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, Long dayStartMs, Long dayEndMs) {
-        return bookingRepository.findByRoomIdAndDate(roomId, dayStartMs, dayEndMs).stream()
+        return bookingMapper.findByRoomIdAndDate(roomId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
     }
@@ -259,6 +227,7 @@ public class BookingApplicationService {
         LocalDateTime endUtc = LocalDateTime.ofEpochSecond(request.getEndTime() / 1000, 0, ZoneOffset.UTC);
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
         ConflictCheckService.ConflictResult result = conflictCheckService.hasConflict(room.getId(), alignedSlot, request.getExcludeBookingId());
+
         ConflictCheckResponse response = new ConflictCheckResponse();
         response.setConflict(result.conflict());
         response.setAlignedStartTime(alignedSlot.start().toInstant(ZoneOffset.UTC).toEpochMilli());
@@ -267,14 +236,26 @@ public class BookingApplicationService {
         return response;
     }
 
+    private Booking requireBooking(Long id) {
+        Booking booking = bookingMapper.findById(id);
+        if (booking == null) {
+            throw new BusinessException(40001, "预约不存在");
+        }
+        return booking;
+    }
+
     private MeetingRoom requireAvailableRoom(Long roomId) {
-        MeetingRoom room = meetingRoomRepository.findById(roomId)
-            .orElseThrow(() -> new BusinessException(40001, "会议室不存在"));
+        MeetingRoom room = meetingRoomMapper.findById(roomId);
+        if (room == null) {
+            throw new BusinessException(40001, "会议室不存在");
+        }
         if (room.getStatus() != RoomStatus.ENABLED) {
             throw new BusinessException(40002, "会议室已停用");
         }
-        Building building = buildingRepository.findById(room.getBuildingId())
-            .orElseThrow(() -> new BusinessException(40001, "楼栋不存在"));
+        Building building = buildingMapper.findById(room.getBuildingId());
+        if (building == null) {
+            throw new BusinessException(40001, "楼栋不存在");
+        }
         if (building.getStatus() != BuildingStatus.ACTIVE) {
             throw new BusinessException(40002, "楼栋已停用");
         }
@@ -287,33 +268,42 @@ public class BookingApplicationService {
         }
     }
 
+    private void persistBooking(Booking booking) {
+        booking.initTimestampsForInsert();
+        bookingMapper.insert(booking);
+    }
+
+    private void updateBooking(Booking booking) {
+        booking.touchForUpdate();
+        booking.setVersion(booking.getVersion() == null ? 1L : booking.getVersion() + 1);
+        bookingMapper.update(booking);
+    }
+
     private void syncAttendees(Long bookingId, List<String> attendeeIds) {
-        bookingAttendeeRepository.deleteByBookingId(bookingId);
+        bookingAttendeeMapper.deleteByBookingId(bookingId);
         List<String> normalized = attendeeIds == null ? List.of() : attendeeIds.stream()
             .filter(value -> value != null && !value.isBlank())
             .distinct()
             .toList();
-        List<BookingAttendee> attendees = new ArrayList<>();
         for (String attendeeId : normalized) {
             BookingAttendee attendee = new BookingAttendee();
             attendee.setBookingId(bookingId);
             attendee.setUserId(attendeeId);
             attendee.setUserName(attendeeId);
-            attendees.add(attendee);
-        }
-        if (!attendees.isEmpty()) {
-            bookingAttendeeRepository.saveAll(attendees);
+            attendee.initTimestampsForInsert();
+            bookingAttendeeMapper.insert(attendee);
         }
     }
 
     private void saveLog(Long bookingId, String operationType, String operatorId, String operatorName, String content) {
-        BookingOperationLog log = new BookingOperationLog();
-        log.setBookingId(bookingId);
-        log.setOperationType(operationType);
-        log.setOperatorId(operatorId);
-        log.setOperatorName(operatorName);
-        log.setContent(content);
-        bookingOperationLogRepository.save(log);
+        BookingOperationLog logEntry = new BookingOperationLog();
+        logEntry.setBookingId(bookingId);
+        logEntry.setOperationType(operationType);
+        logEntry.setOperatorId(operatorId);
+        logEntry.setOperatorName(operatorName);
+        logEntry.setContent(content);
+        logEntry.initTimestampsForInsert();
+        bookingOperationLogMapper.insert(logEntry);
     }
 
     private List<BookingConflictDTO> toConflictDtos(List<Booking> bookings) {
@@ -328,9 +318,9 @@ public class BookingApplicationService {
     }
 
     private BookingDTO toDto(Booking booking) {
-        MeetingRoom room = meetingRoomRepository.findById(booking.getRoomId()).orElse(null);
-        Building building = room == null ? null : buildingRepository.findById(room.getBuildingId()).orElse(null);
-        List<BookingAttendeeDTO> attendees = bookingAttendeeRepository.findByBookingIdOrderByIdAsc(booking.getId()).stream()
+        MeetingRoom room = meetingRoomMapper.findById(booking.getRoomId());
+        Building building = room == null ? null : buildingMapper.findById(room.getBuildingId());
+        List<BookingAttendeeDTO> attendees = bookingAttendeeMapper.findByBookingIdOrderByIdAsc(booking.getId()).stream()
             .map(attendee -> new BookingAttendeeDTO(attendee.getUserId(), attendee.getUserName()))
             .toList();
 
@@ -357,4 +347,7 @@ public class BookingApplicationService {
         dto.setSeriesIndex(booking.getSeriesIndex());
         return dto;
     }
+
+    /** 通用分页结果 */
+    public record PageResult<T>(List<T> content, long total, int page, int size) {}
 }

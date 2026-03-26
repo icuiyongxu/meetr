@@ -1,36 +1,39 @@
 package com.meetr.service;
 
-import com.meetr.domain.entity.*;
-import com.meetr.domain.repository.*;
+import com.meetr.domain.entity.SysPermission;
+import com.meetr.domain.entity.SysRole;
+import com.meetr.domain.entity.SysRolePermission;
+import com.meetr.domain.entity.SysUser;
+import com.meetr.domain.entity.SysUserRole;
+import com.meetr.mapper.SysPermissionMapper;
+import com.meetr.mapper.SysRoleMapper;
+import com.meetr.mapper.SysRolePermissionMapper;
+import com.meetr.mapper.SysUserMapper;
+import com.meetr.mapper.SysUserRoleMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final SysUserRepository sysUserRepository;
-    private final SysRoleRepository sysRoleRepository;
-    private final SysUserRoleRepository sysUserRoleRepository;
-    private final SysRolePermissionRepository sysRolePermissionRepository;
+    private final SysUserMapper sysUserMapper;
+    private final SysRoleMapper sysRoleMapper;
+    private final SysUserRoleMapper sysUserRoleMapper;
+    private final SysRolePermissionMapper sysRolePermissionMapper;
+    private final SysPermissionMapper sysPermissionMapper;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    // ---------- 登录（userId + 密码）----------
-
-    /**
-     * 用户登录，验证密码。
-     * 首次登录（用户不存在）走注册流程。
-     */
     @Transactional
     public SysUser login(String userId, String password) {
-        SysUser user = sysUserRepository.findByUserId(userId).orElse(null);
+        SysUser user = sysUserMapper.findByUserId(userId);
         if (user == null) {
-            // 首次登录，自动注册（不设密码，后续需设置）
             return loginOrRegister(userId);
         }
         if (!"ACTIVE".equals(user.getStatus())) {
@@ -42,30 +45,26 @@ public class AuthService {
         return user;
     }
 
-    /**
-     * 自动注册（无密码，仅 userId）。
-     */
     @Transactional
     public SysUser loginOrRegister(String userId) {
-        return sysUserRepository.findByUserId(userId).orElseGet(() -> {
-            SysUser user = SysUser.builder()
-                .userId(userId)
-                .name(userId)
-                .status("ACTIVE")
-                .createdAtMs(System.currentTimeMillis())
-                .build();
-            SysUser saved = sysUserRepository.save(user);
-            assignRole(saved, "USER");
-            return saved;
-        });
+        SysUser existing = sysUserMapper.findByUserId(userId);
+        if (existing != null) {
+            return existing;
+        }
+        SysUser user = SysUser.builder()
+            .userId(userId)
+            .name(userId)
+            .status("ACTIVE")
+            .createdAtMs(System.currentTimeMillis())
+            .build();
+        sysUserMapper.insert(user);
+        assignRole(user, "USER");
+        return user;
     }
 
-    /**
-     * 注册新用户（管理员创建或用户自助注册）。
-     */
     @Transactional
     public SysUser register(String userId, String name, String password) {
-        if (sysUserRepository.findByUserId(userId).isPresent()) {
+        if (sysUserMapper.findByUserId(userId) != null) {
             throw new com.meetr.exception.BusinessException(40001, "用户已存在");
         }
         SysUser user = SysUser.builder()
@@ -75,18 +74,14 @@ public class AuthService {
             .status("ACTIVE")
             .createdAtMs(System.currentTimeMillis())
             .build();
-        SysUser saved = sysUserRepository.save(user);
-        assignRole(saved, "USER");
-        return saved;
+        sysUserMapper.insert(user);
+        assignRole(user, "USER");
+        return user;
     }
 
-    /**
-     * 修改用户信息（管理员）。
-     */
     @Transactional
     public SysUser updateUser(Long id, String name, String password, String status) {
-        SysUser user = sysUserRepository.findById(id)
-            .orElseThrow(() -> new com.meetr.exception.BusinessException(40401, "用户不存在"));
+        SysUser user = requireUser(id);
         if (name != null && !name.isBlank()) {
             user.setName(name);
         }
@@ -96,70 +91,64 @@ public class AuthService {
         if (status != null) {
             user.setStatus(status);
         }
-        return sysUserRepository.save(user);
+        sysUserMapper.update(user);
+        return user;
     }
 
-    /**
-     * 删除用户。
-     */
     @Transactional
     public void deleteUser(Long id) {
-        SysUser user = sysUserRepository.findById(id)
-            .orElseThrow(() -> new com.meetr.exception.BusinessException(40401, "用户不存在"));
-        sysUserRoleRepository.findByUserId(user.getId()).forEach(sysUserRoleRepository::delete);
-        sysUserRepository.delete(user);
+        SysUser user = requireUser(id);
+        sysUserRoleMapper.deleteByUserId(user.getId());
+        sysUserMapper.deleteById(user.getId());
     }
 
-    /**
-     * 启用/停用用户。
-     */
     @Transactional
     public SysUser setUserStatus(Long id, String status) {
-        SysUser user = sysUserRepository.findById(id)
-            .orElseThrow(() -> new com.meetr.exception.BusinessException(40401, "用户不存在"));
+        SysUser user = requireUser(id);
         user.setStatus(status);
-        return sysUserRepository.save(user);
+        sysUserMapper.update(user);
+        return user;
     }
 
-    /**
-     * 分配角色。
-     */
     @Transactional
     public void assignRoles(Long id, List<String> roleCodes) {
-        SysUser user = sysUserRepository.findById(id)
-            .orElseThrow(() -> new com.meetr.exception.BusinessException(40401, "用户不存在"));
-        sysUserRoleRepository.findByUserId(user.getId()).forEach(sysUserRoleRepository::delete);
+        SysUser user = requireUser(id);
+        sysUserRoleMapper.deleteByUserId(user.getId());
         for (String code : roleCodes) {
-            sysRoleRepository.findByCode(code).ifPresent(role -> {
-                SysUserRole ur = new SysUserRole();
-                ur.setUser(user);
-                ur.setRole(role);
-                sysUserRoleRepository.save(ur);
-            });
+            SysRole role = sysRoleMapper.findByCode(code);
+            if (role != null) {
+                SysUserRole relation = new SysUserRole();
+                relation.setUserId(user.getId());
+                relation.setRoleId(role.getId());
+                sysUserRoleMapper.insert(relation);
+            }
         }
     }
 
     private void assignRole(SysUser user, String roleCode) {
-        sysRoleRepository.findByCode(roleCode).ifPresent(role -> {
-            SysUserRole ur = new SysUserRole();
-            ur.setUser(user);
-            ur.setRole(role);
-            sysUserRoleRepository.save(ur);
-        });
+        SysRole role = sysRoleMapper.findByCode(roleCode);
+        if (role != null) {
+            SysUserRole relation = new SysUserRole();
+            relation.setUserId(user.getId());
+            relation.setRoleId(role.getId());
+            sysUserRoleMapper.insert(relation);
+        }
     }
 
-    // ---------- 原有方法 ----------
-
     public List<String> getUserRoles(String userId) {
-        return sysUserRepository.findByUserId(userId)
-            .map(user -> sysUserRoleRepository.findByUserId(user.getId()).stream()
-                .map(ur -> ur.getRole().getCode())
-                .toList())
-            .orElse(List.of());
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            return List.of();
+        }
+        return sysUserRoleMapper.findByUserId(user.getId()).stream()
+            .map(relation -> sysRoleMapper.findById(relation.getRoleId()))
+            .filter(Objects::nonNull)
+            .map(SysRole::getCode)
+            .toList();
     }
 
     public List<SysUser> getAllUsers() {
-        return sysUserRepository.findAll();
+        return sysUserMapper.findAll();
     }
 
     public boolean hasRole(String userId, String roleCode) {
@@ -167,23 +156,41 @@ public class AuthService {
     }
 
     public boolean hasPermission(String userId, String permissionCode) {
-        return getUserRoles(userId).stream()
-            .filter(code -> "ADMIN".equals(code))
-            .findAny()
-            .isPresent()
-            || sysUserRepository.findByUserId(userId)
-                .map(user -> sysUserRoleRepository.findByUserId(user.getId()).stream()
-                    .anyMatch(ur -> sysRolePermissionRepository.findByRoleId(ur.getRole().getId()).stream()
-                        .anyMatch(rp -> rp.getPermission().getCode().equals(permissionCode))))
-                .orElse(false);
+        return getUserRoles(userId).stream().anyMatch("ADMIN"::equals) || hasPermissionInternal(userId, permissionCode);
     }
 
     public UserDetail getUserDetail(String userId) {
-        SysUser user = sysUserRepository.findByUserId(userId).orElse(null);
-        if (user == null) return null;
-        List<String> roles = getUserRoles(userId);
-        return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(), roles);
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            return null;
+        }
+        return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(), getUserRoles(userId));
     }
 
-    public record UserDetail(Long id, String userId, String name, String status, List<String> roles) {}
+    private SysUser requireUser(Long id) {
+        SysUser user = sysUserMapper.findById(id);
+        if (user == null) {
+            throw new com.meetr.exception.BusinessException(40401, "用户不存在");
+        }
+        return user;
+    }
+
+    private boolean hasPermissionInternal(String userId, String permissionCode) {
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            return false;
+        }
+        for (SysUserRole relation : sysUserRoleMapper.findByUserId(user.getId())) {
+            for (SysRolePermission rolePermission : sysRolePermissionMapper.findByRoleId(relation.getRoleId())) {
+                SysPermission permission = sysPermissionMapper.findById(rolePermission.getPermissionId());
+                if (permission != null && permissionCode.equals(permission.getCode())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public record UserDetail(Long id, String userId, String name, String status, List<String> roles) {
+    }
 }
