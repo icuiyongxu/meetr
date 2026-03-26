@@ -17,6 +17,7 @@ import com.meetr.domain.entity.RoomConfig;
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
 import com.meetr.domain.enums.BuildingStatus;
+import com.meetr.domain.enums.RecurrenceType;
 import com.meetr.domain.enums.RoomStatus;
 import com.meetr.domain.repository.BookingAttendeeRepository;
 import com.meetr.domain.repository.BookingOperationLogRepository;
@@ -25,6 +26,7 @@ import com.meetr.domain.repository.BuildingRepository;
 import com.meetr.domain.repository.MeetingRoomRepository;
 import com.meetr.domain.service.BookingRuleService;
 import com.meetr.domain.service.ConflictCheckService;
+import com.meetr.domain.service.RecurrenceExpander;
 import com.meetr.domain.vo.RuleViolation;
 import com.meetr.domain.vo.TimeSlot;
 import com.meetr.exception.BusinessException;
@@ -57,29 +59,20 @@ public class BookingApplicationService {
     private final RoomConfigApplicationService roomConfigApplicationService;
     private final ConflictCheckService conflictCheckService;
     private final BookingRuleService bookingRuleService;
+    private final RecurrenceExpander recurrenceExpander;
 
     @Transactional
     public BookingResult create(CreateBookingCommand cmd) {
         MeetingRoom room = requireAvailableRoom(cmd.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
 
-        // Long (UTC ms) → LocalDateTime (UTC 解读)，供 TimeSlot 使用
         LocalDateTime startUtc = LocalDateTime.ofEpochSecond(cmd.getStartTime() / 1000, 0, ZoneOffset.UTC);
         LocalDateTime endUtc = LocalDateTime.ofEpochSecond(cmd.getEndTime() / 1000, 0, ZoneOffset.UTC);
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
-        Booking booking = new Booking();
-        booking.setRoomId(room.getId());
-        booking.setSubject(cmd.getSubject());
-        booking.setBookerId(cmd.getBookerId());
-        booking.setBookerName(cmd.getBookerName() == null || cmd.getBookerName().isBlank() ? cmd.getBookerId() : cmd.getBookerName());
-        booking.applyTimeSlot(alignedSlot);
-        booking.setAttendeeCount(cmd.getAttendeeCount());
-        booking.setRemark(cmd.getRemark());
-        booking.setStatus(BookingStatus.BOOKED);
-        booking.setApprovalStatus(Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
+        Booking master = buildBooking(cmd, room, alignedSlot, config, null, 1);
 
-        List<RuleViolation> violations = bookingRuleService.validate(booking, room, config);
+        List<RuleViolation> violations = bookingRuleService.validate(master, room, config);
         if (!violations.isEmpty()) {
             return BookingResult.rejected(violations);
         }
@@ -89,10 +82,60 @@ public class BookingApplicationService {
             return BookingResult.conflicted(toConflictDtos(conflict.conflictingBookings()));
         }
 
-        Booking saved = bookingRepository.save(booking);
+        // 保存主预约
+        Booking saved = bookingRepository.save(master);
         syncAttendees(saved.getId(), cmd.getAttendeeIds());
-        saveLog(saved.getId(), "CREATE", cmd.getBookerId(), booking.getBookerName(), "创建预约");
+        saveLog(saved.getId(), "CREATE", cmd.getBookerId(), saved.getBookerName(), "创建预约");
+
+        // 展开并生成子实例
+        RecurrenceType recType = cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE;
+        if (recType != RecurrenceType.NONE && cmd.getRecurrenceEndDate() != null) {
+            List<long[]> instances = recurrenceExpander.expand(
+                alignedSlot.start(), alignedSlot.end(), recType, cmd.getRecurrenceEndDate());
+            int generated = 0;
+            for (int i = 0; i < instances.size(); i++) {
+                long[] inst = instances.get(i);
+                LocalDateTime s = LocalDateTime.ofEpochSecond(inst[0] / 1000, 0, ZoneOffset.UTC);
+                LocalDateTime e = LocalDateTime.ofEpochSecond(inst[1] / 1000, 0, ZoneOffset.UTC);
+                TimeSlot instSlot = conflictCheckService.alignToSlot(new TimeSlot(s, e), config);
+
+                Booking child = buildBooking(cmd, room, instSlot, config, saved.getId(), i + 2);
+                List<RuleViolation> childViolations = bookingRuleService.validate(child, room, config);
+                if (!childViolations.isEmpty()) continue; // 跳过不满足规则的实例
+
+                ConflictCheckService.ConflictResult childConflict =
+                    conflictCheckService.hasConflict(room.getId(), instSlot, null);
+                if (childConflict.conflict()) continue; // 跳过冲突的实例
+
+                Booking childSaved = bookingRepository.save(child);
+                syncAttendees(childSaved.getId(), cmd.getAttendeeIds());
+                generated++;
+            }
+            // 提示主预约已含 seriesIndex=1
+        }
+
         return BookingResult.success(toDto(saved));
+    }
+
+    private Booking buildBooking(CreateBookingCommand cmd, MeetingRoom room, TimeSlot slot,
+                                 RoomConfig config, Long parentId, int seriesIndex) {
+        Booking b = new Booking();
+        b.setRoomId(room.getId());
+        b.setSubject(cmd.getSubject());
+        b.setBookerId(cmd.getBookerId());
+        b.setBookerName(cmd.getBookerName() == null || cmd.getBookerName().isBlank()
+            ? cmd.getBookerId() : cmd.getBookerName());
+        b.applyTimeSlot(slot);
+        b.setAttendeeCount(cmd.getAttendeeCount());
+        b.setRemark(cmd.getRemark());
+        b.setStatus(BookingStatus.BOOKED);
+        b.setApprovalStatus(
+            Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
+        b.setRecurrenceType(cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE);
+        b.setRecurrenceEndDate(cmd.getRecurrenceEndDate());
+        b.setParentId(parentId);
+        b.setSeriesIndex(seriesIndex);
+        return b;
     }
 
     @Transactional
@@ -129,7 +172,7 @@ public class BookingApplicationService {
     }
 
     @Transactional
-    public void cancel(Long bookingId, String operatorId) {
+    public void cancel(Long bookingId, String operatorId, boolean cancelSeries) {
         Booking booking = bookingRepository.findById(bookingId)
             .orElseThrow(() -> new BusinessException(40001, "预约不存在"));
         assertOperator(booking, operatorId);
@@ -139,7 +182,33 @@ public class BookingApplicationService {
             throw new BusinessException(40002, "预约已取消");
         }
         bookingRepository.save(booking);
-        saveLog(booking.getId(), "CANCEL", operatorId, operatorId, "取消预约");
+        saveLog(booking.getId(), "CANCEL", operatorId, operatorId,
+            cancelSeries ? "取消全系列预约" : "取消预约");
+
+        // 取消整个系列（同时取消所有子实例）
+        if (cancelSeries) {
+            if (booking.getParentId() != null) {
+                // 是子实例 → 取消同系列所有子实例
+                List<Booking> siblings = bookingRepository.findByParentIdOrderBySeriesIndexAsc(booking.getParentId());
+                for (Booking sibling : siblings) {
+                    if (sibling.getStatus() != BookingStatus.CANCELED) {
+                        sibling.cancel();
+                        bookingRepository.save(sibling);
+                        saveLog(sibling.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
+                    }
+                }
+            } else {
+                // 是主预约 → 取消所有子实例
+                List<Booking> children = bookingRepository.findByParentIdOrderBySeriesIndexAsc(booking.getId());
+                for (Booking child : children) {
+                    if (child.getStatus() != BookingStatus.CANCELED) {
+                        child.cancel();
+                        bookingRepository.save(child);
+                        saveLog(child.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
+                    }
+                }
+            }
+        }
     }
 
     public BookingDTO getById(Long id) {
@@ -269,6 +338,10 @@ public class BookingApplicationService {
         dto.setRemark(booking.getRemark());
         dto.setVersion(booking.getVersion());
         dto.setAttendees(attendees);
+        dto.setRecurrenceType(booking.getRecurrenceType());
+        dto.setRecurrenceEndDate(booking.getRecurrenceEndDate());
+        dto.setParentId(booking.getParentId());
+        dto.setSeriesIndex(booking.getSeriesIndex());
         return dto;
     }
 }

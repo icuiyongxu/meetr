@@ -40,6 +40,9 @@
             <el-tag effect="plain">{{ detail.status }}</el-tag>
             <el-tag effect="plain" style="margin-left: 8px">{{ detail.approvalStatus }}</el-tag>
           </el-descriptions-item>
+          <el-descriptions-item v-if="detail.recurrenceType && detail.recurrenceType !== 'NONE'" label="重复">
+            {{ recurrenceLabel(detail.recurrenceType) }}，至 {{ detail.recurrenceEndDate }}
+          </el-descriptions-item>
           <el-descriptions-item label="备注">
             {{ detail.remark || '-' }}
           </el-descriptions-item>
@@ -65,6 +68,13 @@ import { formatRange } from '@/utils/datetime'
 type TabKey = 'all' | 'today' | 'pending'
 
 const store = useBookingStore()
+
+function recurrenceLabel(type?: string) {
+  const map: Record<string, string> = {
+    DAILY: '每天', WEEKLY: '每周', WORKDAY: '工作日', MONTHLY: '每月',
+  }
+  return type ? (map[type] ?? type) : ''
+}
 
 const active = ref<TabKey>('all')
 const loading = ref(false)
@@ -157,18 +167,38 @@ async function openDetail(b: Booking) {
 }
 
 async function askCancel(b: Booking) {
+  const isRecurring = b.recurrenceType && b.recurrenceType !== 'NONE'
   try {
-    await ElMessageBox.confirm('确认取消该预约？', '提示', {
-      confirmButtonText: '取消预约',
-      cancelButtonText: '返回',
-      type: 'warning',
-    })
-  } catch {
+    if (isRecurring) {
+      await ElMessageBox.confirm(
+        '该预约为重复预约，选择「取消本次」只取消当前场次，选择「取消全部」取消整个系列所有场次。',
+        '取消方式',
+        {
+          confirmButtonText: '取消本次',
+          cancelButtonText: '取消全部',
+          distinguishCancelAndClose: true,
+          type: 'warning',
+        }
+      )
+      await cancelBooking(b.id, store.userId, false)
+      ElMessage.success('已取消本次')
+    } else {
+      await ElMessageBox.confirm('确认取消该预约？', '提示', {
+        confirmButtonText: '取消预约',
+        cancelButtonText: '返回',
+        type: 'warning',
+      })
+      await cancelBooking(b.id, store.userId)
+      ElMessage.success('已取消')
+    }
+  } catch (action: any) {
+    if (action === 'cancel') {
+      // 用户点击了"取消全部"（cancelButton）
+      await cancelBooking(b.id, store.userId, true)
+      ElMessage.success('已取消全部系列预约')
+    }
     return
   }
-
-  await cancelBooking(b.id, store.userId)
-  ElMessage.success('已取消')
   await reload()
 }
 

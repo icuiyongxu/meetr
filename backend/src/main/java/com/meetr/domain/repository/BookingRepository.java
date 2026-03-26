@@ -67,4 +67,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByRoomIdAndDate(@Param("roomId") Long roomId,
                                         @Param("dayStartMs") Long dayStartMs,
                                         @Param("dayEndMs") Long dayEndMs);
+
+    /**
+     * 查询系列所有子预约（不含主预约自身）。
+     * @param seriesId 主预约 ID
+     */
+    List<Booking> findByParentIdOrderBySeriesIndexAsc(Long seriesId);
 }

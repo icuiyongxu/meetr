@@ -19,6 +19,8 @@ export function createBooking(data: {
   endTime: number
   attendeeCount: number
   remark?: string
+  recurrenceType?: string
+  recurrenceEndDate?: string
 }) {
   return unwrap<BookingResult>(http.post('/bookings', data))
 }
@@ -37,8 +39,8 @@ export function updateBooking(
   return unwrap<BookingResult>(http.put(`/bookings/${id}`, data))
 }
 
-export function cancelBooking(id: number, operatorId: string) {
-  return unwrap(http.post(`/bookings/${id}/cancel`, { operatorId }))
+export function cancelBooking(id: number, operatorId: string, cancelSeries = false) {
+  return unwrap(http.post(`/bookings/${id}/cancel`, { operatorId, cancelSeries }))
 }
 
 export function getBooking(id: number): Promise<Booking> {

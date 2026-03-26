@@ -2,8 +2,10 @@ package com.meetr.application.dto;
 
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
+import com.meetr.domain.enums.RecurrenceType;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,4 +30,13 @@ public class BookingDTO {
     private String remark;
     private Long version;
     private List<BookingAttendeeDTO> attendees = new ArrayList<>();
+
+    /** 重复类型 */
+    private RecurrenceType recurrenceType;
+    /** 重复结束日期 */
+    private LocalDate recurrenceEndDate;
+    /** 系列主预约 ID（子预约特有） */
+    private Long parentId;
+    /** 系列序号（主预约=1） */
+    private Integer seriesIndex;
 }

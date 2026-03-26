@@ -2,6 +2,7 @@ package com.meetr.domain.entity;
 
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
+import com.meetr.domain.enums.RecurrenceType;
 import com.meetr.domain.vo.TimeSlot;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +16,7 @@ import jakarta.persistence.Version;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -67,6 +69,20 @@ public class Booking extends BaseEntity {
     @Version
     @Column(nullable = false)
     private Long version;
+
+    /** 重复类型，NONE 表示不重复 */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private RecurrenceType recurrenceType = RecurrenceType.NONE;
+
+    /** 重复结束日期（不含），超过该日期不再生成实例 */
+    private LocalDate recurrenceEndDate;
+
+    /** 指向主预约；主预约自身为 null */
+    private Long parentId;
+
+    /** 该实例在系列中的序号（从1起），主预约=1 */
+    private Integer seriesIndex = 0;
 
     // ── 转换方法 ──────────────────────────────────────
 

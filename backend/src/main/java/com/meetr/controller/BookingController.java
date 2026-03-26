@@ -46,7 +46,7 @@ public class BookingController {
 
     @PostMapping("/{id}/cancel")
     public ApiResponse<Void> cancel(@PathVariable Long id, @Valid @RequestBody CancelBookingRequest request) {
-        bookingApplicationService.cancel(id, request.getOperatorId());
+        bookingApplicationService.cancel(id, request.getOperatorId(), Boolean.TRUE.equals(request.getCancelSeries()));
         return ApiResponse.ok(null);
     }
 
@@ -77,5 +77,8 @@ public class BookingController {
 
         @NotBlank
         private String operatorId;
+
+        /** 是否取消整个系列；默认 false 只取消当前 */
+        private Boolean cancelSeries;
     }
 }

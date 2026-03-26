@@ -1,9 +1,11 @@
 package com.meetr.application.dto;
 
+import com.meetr.domain.enums.RecurrenceType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -37,4 +39,10 @@ public class CreateBookingCommand {
     private List<String> attendeeIds;
 
     private String remark;
+
+    /** 重复类型，默认不重复 */
+    private RecurrenceType recurrenceType = RecurrenceType.NONE;
+
+    /** 重复结束日期（不含）；recurrenceType 为 NONE 时忽略 */
+    private LocalDate recurrenceEndDate;
 }

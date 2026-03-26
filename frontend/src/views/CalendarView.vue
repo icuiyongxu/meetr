@@ -152,6 +152,27 @@
           />
         </el-form-item>
 
+        <el-form-item label="重复">
+          <el-select v-model="form.recurrenceType" style="width: 100%">
+            <el-option label="不重复" value="NONE" />
+            <el-option label="每天" value="DAILY" />
+            <el-option label="每周" value="WEEKLY" />
+            <el-option label="工作日（周一至周五）" value="WORKDAY" />
+            <el-option label="每月" value="MONTHLY" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item v-if="form.recurrenceType !== 'NONE'" label="重复结束">
+          <el-date-picker
+            v-model="form.recurrenceEndDate"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            :disabled-date="(d: Date) => d.getTime() < dayjs(form.startTime).startOf('day').valueOf()"
+            style="width: 100%"
+          />
+        </el-form-item>
+
         <el-form-item label="参会人数">
           <el-input-number v-model="form.attendeeCount" :min="1" :max="999" />
         </el-form-item>
@@ -407,6 +428,8 @@ const form = reactive({
   subject: '',
   startTime: '',
   endTime: '',
+  recurrenceType: 'NONE',
+  recurrenceEndDate: '',
   attendeeCount: 1,
   remark: '',
 })
@@ -435,6 +458,8 @@ function showBookingDialog(
     subject: '',
     startTime: prefilledTime ?? '',
     endTime: prefilledEndTime ?? (prefilledTime ? dayjs(prefilledTime).add(1, 'hour').format('YYYY-MM-DDTHH:mm:ss') : ''),
+    recurrenceType: 'NONE',
+    recurrenceEndDate: '',
     attendeeCount: 1,
     remark: '',
   })
@@ -485,6 +510,10 @@ async function onSubmit() {
       endTime: endMs,
       attendeeCount: form.attendeeCount,
       remark: form.remark?.trim() || undefined,
+      recurrenceType: form.recurrenceType as any,
+      recurrenceEndDate: form.recurrenceType !== 'NONE' && form.recurrenceEndDate
+        ? dayjs(form.recurrenceEndDate).format('YYYY-MM-DD') as any
+        : undefined,
     })
 
     if (!result.success) {

@@ -1,5 +1,6 @@
 export type BookingStatus = 'BOOKED' | 'CANCELED' | 'FINISHED'
 export type ApprovalStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'
+export type RecurrenceType = 'NONE' | 'DAILY' | 'WEEKLY' | 'WORKDAY' | 'MONTHLY'
 
 export interface BookingAttendee {
   id?: string
@@ -25,6 +26,14 @@ export interface Booking {
   remark?: string
   version: number
   attendees: BookingAttendee[]
+  /** 重复类型 */
+  recurrenceType?: RecurrenceType
+  /** 重复结束日期 */
+  recurrenceEndDate?: string
+  /** 系列主预约 ID */
+  parentId?: number
+  /** 系列序号（主预约=1） */
+  seriesIndex?: number
 }
 
 export interface BookingConflictDTO {
