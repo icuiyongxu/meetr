@@ -34,7 +34,7 @@ public class SaveRoomConfigRequest {
     private Integer maxDurationMinutes = 480;
 
     @Min(1)
-    private Integer maxPerDay = 3;
+    private Integer maxPerDay = 20;
 
     @Min(1)
     private Integer maxPerWeek = 10;

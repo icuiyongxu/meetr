@@ -266,7 +266,7 @@ function getBookingAt(roomId: number, slotTime: string): Booking | null {
 
 function getCellClass(roomId: number, slotTime: string) {
   const b = getBookingAt(roomId, slotTime)
-  const now = dayjs()
+  const now = dayjs().tz('Asia/Shanghai')
   const slotDt = dayjs.tz(slotTime, 'Asia/Shanghai')
   if (b) return { booked: true, 'booking-start': dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf() === slotDt.valueOf() }
   if (slotDt.isBefore(now)) return { past: true }
@@ -313,8 +313,8 @@ function onCellClick(room: Room, slot: { time: string; label: string }) {
   }
 
   // 免费的格子 — 弹出创建对话框，预填时间和房间
-  const now = dayjs()
-  const slotDt = dayjs(slot.time)
+  const now = dayjs().tz('Asia/Shanghai')
+  const slotDt = dayjs.tz(slot.time, 'Asia/Shanghai')
   if (slotDt.isBefore(now)) {
     ElMessage.warning('不能预约过去的时间段')
     return
@@ -405,8 +405,8 @@ async function onSubmit() {
     }
     conflicts.value = []
 
-      // 发北京时间字符串 "2026-03-26 02:00:00"，后端用 @JsonFormat(pattern) 解析
-      const fmt = (v: string) => dayjs.tz(v, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss')
+      // 发北京时间字符串，后端用 @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") 解析
+      const fmt = (v: string) => dayjs.tz(v, 'Asia/Shanghai').format('YYYY-MM-DDTHH:mm:ss')
       const result = await createBooking({
         roomId: form.roomId!,
         subject: form.subject.trim(),

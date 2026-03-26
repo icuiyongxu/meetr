@@ -51,7 +51,7 @@ public class RoomConfig extends BaseEntity {
     private Integer maxDurationMinutes = 480;
 
     @Column(nullable = false)
-    private Integer maxPerDay = 3;
+    private Integer maxPerDay = 20;
 
     @Column(nullable = false)
     private Integer maxPerWeek = 10;

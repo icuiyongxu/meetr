@@ -39,7 +39,7 @@ public class DefaultRoomConfigInitializer {
         config.setMaxBookAheadDays(30);
         config.setMinDurationMinutes(15);
         config.setMaxDurationMinutes(480);
-        config.setMaxPerDay(3);
+        config.setMaxPerDay(20);
         config.setMaxPerWeek(10);
         config.setApprovalRequired(Boolean.FALSE);
         config.setStatus(RoomStatus.ENABLED);

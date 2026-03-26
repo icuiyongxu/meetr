@@ -24,11 +24,12 @@ public class CreateBookingCommand {
 
     /** 格式: 2026-03-26T02:00:00，后端统一按北京时间解读 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime startTime;
 
+    /** 格式: 2026-03-26T02:00:00，后端统一按北京时间解读 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime endTime;
 
     private Integer attendeeCount;
