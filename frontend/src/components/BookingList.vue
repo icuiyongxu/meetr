@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import type { Booking } from '@/types/booking'
-import { formatRange } from '@/utils/datetime'
+import { formatRange, isPast } from '@/utils/datetime'
 
 const props = defineProps<{
   bookings: Booking[]
@@ -95,7 +95,7 @@ function approvalTagType(status: Booking['approvalStatus']) {
 
 function canCancel(row: Booking) {
   if (row.status !== 'BOOKED') return false
-  return dayjs(row.startTime).isAfter(dayjs())
+  return !isPast(row.startTime)
 }
 
 void props

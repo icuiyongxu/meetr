@@ -1,24 +1,24 @@
 package com.meetr.application.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
+/**
+ * 前端传 UTC 毫秒时间戳，后端直接使用。
+ */
 @Data
 public class ConflictCheckRequest {
 
     @NotNull
     private Long roomId;
 
+    /** UTC 毫秒时间戳 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
-    private LocalDateTime startTime;
+    private Long startTime;
 
+    /** UTC 毫秒时间戳 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
-    private LocalDateTime endTime;
+    private Long endTime;
 
     private Long excludeBookingId;
 }

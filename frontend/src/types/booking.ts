@@ -15,8 +15,10 @@ export interface Booking {
   subject: string
   bookerId: string
   bookerName?: string
-  startTime: string
-  endTime: string
+  /** UTC 毫秒时间戳 */
+  startTime: number
+  /** UTC 毫秒时间戳 */
+  endTime: number
   attendeeCount: number
   status: BookingStatus
   approvalStatus: ApprovalStatus
@@ -28,15 +30,19 @@ export interface Booking {
 export interface BookingConflictDTO {
   id: number
   subject: string
-  startTime: string
-  endTime: string
+  /** UTC 毫秒时间戳 */
+  startTime: number
+  /** UTC 毫秒时间戳 */
+  endTime: number
   bookerName?: string
 }
 
 export interface ConflictCheckResponse {
   conflict: boolean
-  alignedStartTime: string
-  alignedEndTime: string
+  /** UTC 毫秒时间戳 */
+  alignedStartTime: number
+  /** UTC 毫秒时间戳 */
+  alignedEndTime: number
   conflictingBookings: BookingConflictDTO[]
 }
 

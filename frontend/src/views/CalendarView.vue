@@ -185,9 +185,11 @@ import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { getBookingsByRoomAndDate } from '@/api/booking'
 import { createBooking, cancelBooking, checkConflict } from '@/api/booking'
+import { getBookingRules } from '@/api/config'
 import { useBookingStore } from '@/stores/booking'
 import type { Building } from '@/types/building'
 import type { Room } from '@/types/room'
+import type { RoomConfig } from '@/types/room'
 import type { Booking, BookingConflictDTO } from '@/types/booking'
 import ConflictAlert from '@/components/ConflictAlert.vue'
 
@@ -200,25 +202,31 @@ const loading = ref(false)
 const buildings = ref<Building[]>([])
 const rooms = ref<Room[]>([])
 const allDayBookings = ref<Booking[]>([]) // 当日全量预约
+const roomConfig = ref<RoomConfig | null>(null)
 
-// ── 时间格（按 resolution=30min 生成） ───────────────────
-const SLOT_MINUTES = 30 // TODO: 后续按会议室 config 动态
-const OPEN_HOUR = 0   // 24小时制，从 00:00 开始
-const CLOSE_HOUR = 24 // 到 24:00 结束（全天）
+// ── 工具 ───────────────────────────────────────────────
+function parseHHmm(s: string) {
+  const [h, m] = s.split(':').map((x) => Number(x))
+  return (h || 0) * 60 + (m || 0)
+}
+
+// ── 时间格（按会议室 config 动态生成） ───────────────────
+const OPEN_MINUTES = computed(() => parseHHmm(roomConfig.value?.morningStarts ?? '00:00'))
+const CLOSE_MINUTES = computed(() => parseHHmm(roomConfig.value?.eveningEnds ?? '24:00'))
+const SLOT_MINUTES = computed(() => Math.max(1, Math.round((roomConfig.value?.resolution ?? 1800) / 60)))
 
 const timeSlots = computed(() => {
   const slots = []
-  for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
-    for (let m = 0; m < 60; m += SLOT_MINUTES) {
-      const totalMin = h * 60 + m
-      const hh = String(Math.floor(totalMin / 60)).padStart(2, '0')
-      const mm = String(totalMin % 60).padStart(2, '0')
-      slots.push({
-        time: `${selectedDate.value} ${hh}:${mm}:00`,
-        label: `${hh}:${mm}`,
-        totalMinutes: totalMin,
-      })
-    }
+  const startM = OPEN_MINUTES.value
+  const endM = CLOSE_MINUTES.value
+  for (let m = startM; m < endM; m += SLOT_MINUTES.value) {
+    const hh = String(Math.floor(m / 60)).padStart(2, '0')
+    const mm = String(m % 60).padStart(2, '0')
+    slots.push({
+      time: `${selectedDate.value} ${hh}:${mm}:00`,
+      label: `${hh}:${mm}`,
+      totalMinutes: m,
+    })
   }
   return slots
 })
@@ -233,7 +241,7 @@ function formatTime(dt: string) {
   return dayjs.tz(dt, 'Asia/Shanghai').format('HH:mm')
 }
 
-function formatRange(start: string, end: string) {
+function formatRange(start: string | number, end: string | number) {
   return `${dayjs.tz(start, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm')} - ${dayjs.tz(end, 'Asia/Shanghai').format('HH:mm')}`
 }
 
@@ -247,7 +255,7 @@ function approvalTagType(s: Booking['approvalStatus']) {
 
 function canCancel(booking: Booking) {
   if (booking.status !== 'BOOKED') return false
-  return dayjs.tz(booking.startTime, 'Asia/Shanghai').isAfter(dayjs())
+  return dayjs.tz(booking.startTime, 'Asia/Shanghai').valueOf() > dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
 }
 
 // ── 预约格子逻辑 ────────────────────────────────────────
@@ -266,10 +274,11 @@ function getBookingAt(roomId: number, slotTime: string): Booking | null {
 
 function getCellClass(roomId: number, slotTime: string) {
   const b = getBookingAt(roomId, slotTime)
-  const now = dayjs().tz('Asia/Shanghai')
-  const slotDt = dayjs.tz(slotTime, 'Asia/Shanghai')
-  if (b) return { booked: true, 'booking-start': dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf() === slotDt.valueOf() }
-  if (slotDt.isBefore(now)) return { past: true }
+  // UTC 毫秒比较，消除时区歧义
+  const nowMs = dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
+  const slotMs = dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()
+  if (b) return { booked: true, 'booking-start': dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf() === slotMs }
+  if (slotMs < nowMs) return { past: true }
   return { free: true }
 }
 
@@ -313,9 +322,10 @@ function onCellClick(room: Room, slot: { time: string; label: string }) {
   }
 
   // 免费的格子 — 弹出创建对话框，预填时间和房间
-  const now = dayjs().tz('Asia/Shanghai')
-  const slotDt = dayjs.tz(slot.time, 'Asia/Shanghai')
-  if (slotDt.isBefore(now)) {
+  // 用 UTC 毫秒直接比较：北京时间 slot → Asia/Shanghai 时区 → UTC ms
+  const nowMs = dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
+  const slotMs = dayjs.tz(slot.time, 'Asia/Shanghai').valueOf()
+  if (slotMs < nowMs) {
     ElMessage.warning('不能预约过去的时间段')
     return
   }
@@ -392,11 +402,15 @@ async function onSubmit() {
 
   submitting.value = true
   try {
+    // Date 字符串 → UTC 毫秒
+    const startMs = dayjs.tz(form.startTime, 'Asia/Shanghai').valueOf()
+    const endMs = dayjs.tz(form.endTime, 'Asia/Shanghai').valueOf()
+
     // 先做冲突预检
     const cr = await checkConflict({
       roomId: form.roomId!,
-      startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
-      endTime: end.format('YYYY-MM-DDTHH:mm:ss'),
+      startTime: startMs,
+      endTime: endMs,
     })
     if (cr.conflict) {
       conflicts.value = cr.conflictingBookings
@@ -405,18 +419,16 @@ async function onSubmit() {
     }
     conflicts.value = []
 
-      // 发北京时间字符串，后端用 @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") 解析
-      const fmt = (v: string) => dayjs.tz(v, 'Asia/Shanghai').format('YYYY-MM-DDTHH:mm:ss')
-      const result = await createBooking({
-        roomId: form.roomId!,
-        subject: form.subject.trim(),
-        bookerId: store.userId,
-        bookerName: store.userName || undefined,
-        startTime: fmt(form.startTime),
-        endTime: fmt(form.endTime),
-        attendeeCount: form.attendeeCount,
-        remark: form.remark?.trim() || undefined,
-      })
+    const result = await createBooking({
+      roomId: form.roomId!,
+      subject: form.subject.trim(),
+      bookerId: store.userId,
+      bookerName: store.userName || undefined,
+      startTime: startMs,
+      endTime: endMs,
+      attendeeCount: form.attendeeCount,
+      remark: form.remark?.trim() || undefined,
+    })
 
     if (!result.success) {
       if (result.conflicts?.length) conflicts.value = result.conflicts
@@ -466,15 +478,17 @@ const formattedDate = computed(() => dayjs(selectedDate.value).format('YYYY年MM
 async function loadData() {
   loading.value = true
   try {
-    const [bData, rData] = await Promise.all([
+    const [bData, rData, cfg] = await Promise.all([
       getBuildings(),
       getRooms({
         buildingId: selectedBuildingId.value,
         status: 'ENABLED',
       }),
+      getBookingRules(null),
     ])
     buildings.value = bData
     rooms.value = rData
+    roomConfig.value = cfg
 
     // 拉每个房间当天的预约
     const dateStr = selectedDate.value
@@ -612,7 +626,7 @@ onMounted(() => {
 }
 
 .cell.past {
-  background: var(--el-fill-color-light);
+  background: #e8edf4;
   cursor: not-allowed;
 }
 

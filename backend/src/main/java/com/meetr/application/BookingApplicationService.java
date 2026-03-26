@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,11 @@ public class BookingApplicationService {
     public BookingResult create(CreateBookingCommand cmd) {
         MeetingRoom room = requireAvailableRoom(cmd.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
-        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(cmd.getStartTime(), cmd.getEndTime()), config);
+
+        // Long (UTC ms) → LocalDateTime (UTC 解读)，供 TimeSlot 使用
+        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(cmd.getStartTime() / 1000, 0, ZoneOffset.UTC);
+        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(cmd.getEndTime() / 1000, 0, ZoneOffset.UTC);
+        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
         Booking booking = new Booking();
         booking.setRoomId(room.getId());
@@ -101,7 +106,9 @@ public class BookingApplicationService {
 
         MeetingRoom room = requireAvailableRoom(booking.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
-        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(cmd.getStartTime(), cmd.getEndTime()), config);
+        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(cmd.getStartTime() / 1000, 0, ZoneOffset.UTC);
+        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(cmd.getEndTime() / 1000, 0, ZoneOffset.UTC);
+        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
         booking.updateDetails(cmd.getSubject(), alignedSlot, cmd.getAttendeeCount(), cmd.getRemark());
         booking.setApprovalStatus(Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
@@ -166,12 +173,14 @@ public class BookingApplicationService {
     public ConflictCheckResponse checkConflict(ConflictCheckRequest request) {
         MeetingRoom room = requireAvailableRoom(request.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
-        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(request.getStartTime(), request.getEndTime()), config);
+        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(request.getStartTime() / 1000, 0, ZoneOffset.UTC);
+        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(request.getEndTime() / 1000, 0, ZoneOffset.UTC);
+        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
         ConflictCheckService.ConflictResult result = conflictCheckService.hasConflict(room.getId(), alignedSlot, request.getExcludeBookingId());
         ConflictCheckResponse response = new ConflictCheckResponse();
         response.setConflict(result.conflict());
-        response.setAlignedStartTime(alignedSlot.start());
-        response.setAlignedEndTime(alignedSlot.end());
+        response.setAlignedStartTime(alignedSlot.start().toInstant(ZoneOffset.UTC).toEpochMilli());
+        response.setAlignedEndTime(alignedSlot.end().toInstant(ZoneOffset.UTC).toEpochMilli());
         response.setConflictingBookings(toConflictDtos(result.conflictingBookings()));
         return response;
     }
@@ -230,8 +239,8 @@ public class BookingApplicationService {
             .map(booking -> new BookingConflictDTO(
                 booking.getId(),
                 booking.getSubject(),
-                booking.getStartTime(),
-                booking.getEndTime(),
+                booking.getStartTimeMs(),
+                booking.getEndTimeMs(),
                 booking.getBookerName()))
             .toList();
     }
@@ -252,8 +261,8 @@ public class BookingApplicationService {
         dto.setSubject(booking.getSubject());
         dto.setBookerId(booking.getBookerId());
         dto.setBookerName(booking.getBookerName());
-        dto.setStartTime(booking.getStartTime());
-        dto.setEndTime(booking.getEndTime());
+        dto.setStartTime(booking.getStartTimeMs());
+        dto.setEndTime(booking.getEndTimeMs());
         dto.setAttendeeCount(booking.getAttendeeCount());
         dto.setStatus(booking.getStatus());
         dto.setApprovalStatus(booking.getApprovalStatus());

@@ -10,53 +10,57 @@
         <el-button :loading="loading" @click="load">刷新</el-button>
       </div>
 
-      <el-form ref="formRef" :model="form" label-width="160px" style="max-width: 760px" v-loading="loading">
-        <el-form-item label="时间粒度 resolution">
+      <el-form ref="formRef" :model="form" label-position="left" label-width="156px" style="max-width: 900px" v-loading="loading">
+        <el-form-item label="时间粒度">
           <el-select v-model="resolutionMinutes" style="width: 240px">
             <el-option label="15 分钟" :value="15" />
             <el-option label="30 分钟" :value="30" />
             <el-option label="60 分钟" :value="60" />
           </el-select>
-          <el-text type="info" style="margin-left: 10px">后端单位为秒</el-text>
+          <span class="form-tip">后台单位为秒</span>
         </el-form-item>
 
-        <el-form-item label="默认时长（分钟）">
-          <el-input-number v-model="form.defaultDuration" :min="1" :max="1440" />
+        <el-form-item label="默认时长">
+          <el-input-number v-model="form.defaultDuration" :min="1" :max="1440" style="width: 240px" />
         </el-form-item>
 
-        <el-form-item label="开放时间（开始-结束）">
-          <div class="tw">
-            <el-time-select v-model="form.morningStarts" start="00:00" step="00:15" end="23:45" />
-            <span class="dash">-</span>
-            <el-time-select v-model="form.eveningEnds" start="00:00" step="00:15" end="23:45" />
-          </div>
+        <el-form-item label="开放时间">
+          <el-time-select v-model="form.morningStarts" start="00:00" step="00:15" end="23:45" style="width: 130px" />
+          <span class="form-sep">—</span>
+          <el-time-select v-model="form.eveningEnds" start="00:00" step="00:15" end="23:45" style="width: 130px" />
         </el-form-item>
 
-        <el-form-item label="最少提前预约（分钟）">
-          <el-input-number v-model="form.minBookAheadMinutes" :min="0" :max="99999" />
+        <el-form-item label="最少提前预约">
+          <el-input-number v-model="form.minBookAheadMinutes" :min="0" :max="99999" style="width: 240px" />
+          <span class="form-tip">0=不限制</span>
         </el-form-item>
 
-        <el-form-item label="最多提前预约（天）">
-          <el-input-number v-model="form.maxBookAheadDays" :min="0" :max="3650" />
+        <el-form-item label="最多提前预约">
+          <el-input-number v-model="form.maxBookAheadDays" :min="0" :max="3650" style="width: 240px" />
+          <span class="form-tip">天</span>
         </el-form-item>
 
-        <el-form-item label="最短预约时长（分钟）">
-          <el-input-number v-model="form.minDurationMinutes" :min="1" :max="1440" />
+        <el-form-item label="最短预约时长">
+          <el-input-number v-model="form.minDurationMinutes" :min="1" :max="1440" style="width: 240px" />
+          <span class="form-tip">分钟</span>
         </el-form-item>
 
-        <el-form-item label="最长预约时长（分钟）">
-          <el-input-number v-model="form.maxDurationMinutes" :min="1" :max="1440" />
+        <el-form-item label="最长预约时长">
+          <el-input-number v-model="form.maxDurationMinutes" :min="1" :max="1440" style="width: 240px" />
+          <span class="form-tip">分钟</span>
         </el-form-item>
 
-        <el-form-item label="同一天最多预约次数">
-          <el-input-number v-model="form.maxPerDay" :min="1" :max="999" />
+        <el-form-item label="同一天最多预约">
+          <el-input-number v-model="form.maxPerDay" :min="1" :max="999" style="width: 240px" />
+          <span class="form-tip">次</span>
         </el-form-item>
 
-        <el-form-item label="同一周最多预约次数">
-          <el-input-number v-model="form.maxPerWeek" :min="1" :max="9999" />
+        <el-form-item label="同一周最多预约">
+          <el-input-number v-model="form.maxPerWeek" :min="1" :max="9999" style="width: 240px" />
+          <span class="form-tip">次</span>
         </el-form-item>
 
-        <el-form-item label="是否需要审批">
+        <el-form-item label="需审批">
           <el-switch v-model="form.approvalRequired" />
         </el-form-item>
       </el-form>
@@ -194,14 +198,16 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
-.tw {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.form-tip {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
 }
 
-.dash {
+.form-sep {
   color: var(--el-text-color-secondary);
+  font-size: 14px;
 }
 
 .footer {

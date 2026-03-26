@@ -147,7 +147,7 @@ import { getRoom } from '@/api/room'
 import { getBookingRules } from '@/api/config'
 import { checkConflict } from '@/api/booking'
 import { equipmentLabel } from '@/utils/equipment'
-import { toLocalDateTimeString, formatRange } from '@/utils/datetime'
+import { formatRange } from '@/utils/datetime'
 import BookingForm from '@/components/BookingForm.vue'
 import ConflictAlert from '@/components/ConflictAlert.vue'
 
@@ -231,8 +231,9 @@ const slots = computed<SlotVM[]>(() => {
   while (cur.isBefore(end)) {
     const nxt = cur.add(stepMin, 'minute')
     const occupied = occupiedBookings.value.some((b) => {
-      const bs = dayjs(b.startTime)
-      const be = dayjs(b.endTime)
+      // b.startTime/endTime 是 UTC 毫秒，转为北京时间后比较
+      const bs = dayjs.tz(b.startTime, 'Asia/Shanghai')
+      const be = dayjs.tz(b.endTime, 'Asia/Shanghai')
       return bs.isBefore(nxt) && be.isAfter(cur)
     })
     const selected =
@@ -259,7 +260,11 @@ const selectionText = computed(() => {
   if (!hasSelection.value) return ''
   const s = slots.value[startIndex.value!]
   const e = slots.value[endIndex.value! - 1]
-  return formatRange(toLocalDateTimeString(s.start.toDate()), toLocalDateTimeString(e.end.toDate()))
+  // start/end 是 dayjs(UTC ms)，转为北京时间后格式化
+  return formatRange(
+    dayjs.tz(s.start.valueOf(), 'Asia/Shanghai').format('YYYY-MM-DD HH:mm'),
+    dayjs.tz(e.end.valueOf(), 'Asia/Shanghai').format('YYYY-MM-DD HH:mm'),
+  )
 })
 
 const initialSlot = computed(() => {
@@ -333,8 +338,8 @@ async function loadDayBookings() {
     const { start, end } = slotRangeForDay()
     const res = await checkConflict({
       roomId: room.value.id,
-      startTime: toLocalDateTimeString(start.toDate()),
-      endTime: toLocalDateTimeString(end.toDate()),
+      startTime: start.valueOf(),
+      endTime: end.valueOf(),
     })
     occupiedBookings.value = res.conflictingBookings || []
     // if current selection becomes invalid, clear it

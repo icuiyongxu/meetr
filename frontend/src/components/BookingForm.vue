@@ -55,7 +55,6 @@ import dayjs from 'dayjs'
 import { checkConflict, createBooking } from '@/api/booking'
 import { useBookingStore } from '@/stores/booking'
 import type { BookingConflictDTO } from '@/types/booking'
-import { toLocalDateTimeString } from '@/utils/datetime'
 
 const props = defineProps<{
   roomId: number
@@ -147,13 +146,14 @@ async function onSubmit() {
 
   submitting.value = true
   try {
-    const startStr = toLocalDateTimeString(form.startTime)
-    const endStr = toLocalDateTimeString(form.endTime)
+    // Date → UTC 毫秒
+    const startMs = dayjs.tz(form.startTime, 'Asia/Shanghai').valueOf()
+    const endMs = dayjs.tz(form.endTime, 'Asia/Shanghai').valueOf()
 
     const conflictRes = await checkConflict({
       roomId: props.roomId,
-      startTime: startStr,
-      endTime: endStr,
+      startTime: startMs,
+      endTime: endMs,
     })
 
     const conflicts = conflictRes.conflictingBookings || []
@@ -163,12 +163,10 @@ async function onSubmit() {
       return
     }
 
-    // If backend aligns time, update form to aligned values (no timezone in LocalDateTime).
+    // 如果后端对齐了时间，用 UTC 毫秒转回 Date 展示
     if (conflictRes.alignedStartTime && conflictRes.alignedEndTime) {
-      const alignedStart = dayjs(conflictRes.alignedStartTime).toDate()
-      const alignedEnd = dayjs(conflictRes.alignedEndTime).toDate()
-      form.startTime = alignedStart
-      form.endTime = alignedEnd
+      form.startTime = new Date(conflictRes.alignedStartTime)
+      form.endTime = new Date(conflictRes.alignedEndTime)
     }
 
     const result = await createBooking({
@@ -176,8 +174,8 @@ async function onSubmit() {
       subject: form.subject.trim(),
       bookerId: store.userId,
       bookerName: store.userName || undefined,
-      startTime: toLocalDateTimeString(form.startTime),
-      endTime: toLocalDateTimeString(form.endTime),
+      startTime: dayjs.tz(form.startTime, 'Asia/Shanghai').valueOf(),
+      endTime: dayjs.tz(form.endTime, 'Asia/Shanghai').valueOf(),
       attendeeCount: form.attendeeCount,
       remark: form.remark?.trim() || undefined,
     })

@@ -1,13 +1,15 @@
 package com.meetr.application.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 前端传 UTC 毫秒时间戳，后端直接使用，不做任何时区解读。
+ * 前端示例: 1742983200000 (北京时间 2026-03-27 00:00:00 的 UTC 毫秒)
+ */
 @Data
 public class CreateBookingCommand {
 
@@ -22,15 +24,13 @@ public class CreateBookingCommand {
 
     private String bookerName;
 
-    /** 格式: 2026-03-26T02:00:00，后端统一按北京时间解读 */
+    /** UTC 毫秒时间戳 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
-    private LocalDateTime startTime;
+    private Long startTime;
 
-    /** 格式: 2026-03-26T02:00:00，后端统一按北京时间解读 */
+    /** UTC 毫秒时间戳 */
     @NotNull
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Shanghai")
-    private LocalDateTime endTime;
+    private Long endTime;
 
     private Integer attendeeCount;
 

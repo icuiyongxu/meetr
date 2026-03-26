@@ -3,8 +3,8 @@ import type { Booking, BookingResult, ConflictCheckResponse } from '@/types/book
 
 export function checkConflict(data: {
   roomId: number
-  startTime: string
-  endTime: string
+  startTime: number
+  endTime: number
   excludeBookingId?: number
 }): Promise<ConflictCheckResponse> {
   return unwrap(http.post('/bookings/check-conflict', data))
@@ -15,8 +15,8 @@ export function createBooking(data: {
   subject: string
   bookerId: string
   bookerName?: string
-  startTime: string
-  endTime: string
+  startTime: number
+  endTime: number
   attendeeCount: number
   remark?: string
 }) {
@@ -28,8 +28,8 @@ export function updateBooking(
   data: {
     subject: string
     operatorId: string
-    startTime: string
-    endTime: string
+    startTime: number
+    endTime: number
     attendeeCount: number
     remark?: string
   },

@@ -4,7 +4,6 @@ import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,8 +18,10 @@ public class BookingDTO {
     private String subject;
     private String bookerId;
     private String bookerName;
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    /** UTC 毫秒时间戳 */
+    private Long startTime;
+    /** UTC 毫秒时间戳 */
+    private Long endTime;
     private Integer attendeeCount;
     private BookingStatus status;
     private ApprovalStatus approvalStatus;
