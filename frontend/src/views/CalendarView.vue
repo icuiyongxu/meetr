@@ -56,7 +56,8 @@
             :key="room.id + '-' + slot.time"
             class="cell"
             :class="getCellClass(room.id, slot.time)"
-            @click="onCellClick(room, slot)"
+            @mousedown.left.prevent="onCellMousedown(room, slot)"
+            @mouseenter.left="onCellMouseenter(room, slot)"
           >
             <template v-if="getBookingAt(room.id, slot.time)">
               <div
@@ -279,6 +280,7 @@ function getCellClass(roomId: number, slotTime: string) {
   const slotMs = dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()
   if (b) return { booked: true, 'booking-start': dayjs.tz(b.startTime, 'Asia/Shanghai').valueOf() === slotMs }
   if (slotMs < nowMs) return { past: true }
+  if (isInDragRange(roomId, slotTime)) return { free: true, selecting: true }
   return { free: true }
 }
 
@@ -302,7 +304,7 @@ function getBookingBlockStyle(booking: Booking | null | undefined, _roomId: numb
   // 计算跨越的 slot 数
   const startMin = dayjs.tz(booking.startTime, 'Asia/Shanghai').valueOf()
   const endMin = dayjs.tz(booking.endTime, 'Asia/Shanghai').valueOf()
-  const slotMs = SLOT_MINUTES * 60 * 1000
+  const slotMs = SLOT_MINUTES.value * 60 * 1000
   const slotsCount = Math.round((endMin - startMin) / slotMs)
 
   // 每个 slot 高度 36px
@@ -338,7 +340,59 @@ function onBookingClick(booking: Booking) {
   dialogVisible.value = true
 }
 
-// ── 对话框 ──────────────────────────────────────────────
+// ── 拖拽选择 ────────────────────────────────────────────
+const dragState = ref<{
+  active: boolean
+  roomId: number | null
+  startSlot: { time: string } | null
+  currentSlot: { time: string } | null
+}>({ active: false, roomId: null, startSlot: null, currentSlot: null })
+
+function isInDragRange(roomId: number, slotTime: string) {
+  if (!dragState.value.active || dragState.value.roomId !== roomId || !dragState.value.startSlot) return false
+  const startMs = dayjs.tz(dragState.value.startSlot.time, 'Asia/Shanghai').valueOf()
+  const currentMs = dayjs.tz(dragState.value.currentSlot?.time ?? dragState.value.startSlot!.time, 'Asia/Shanghai').valueOf()
+  const slotMs = dayjs.tz(slotTime, 'Asia/Shanghai').valueOf()
+  const minMs = Math.min(startMs, currentMs)
+  const maxMs = Math.max(startMs, currentMs)
+  return slotMs >= minMs && slotMs <= maxMs
+}
+
+function onCellMousedown(room: Room, slot: { time: string }) {
+  const b = getBookingAt(room.id, slot.time)
+  const nowMs = dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
+  const slotMs = dayjs.tz(slot.time, 'Asia/Shanghai').valueOf()
+  if (b || slotMs < nowMs) return
+
+  dragState.value = { active: true, roomId: room.id, startSlot: slot, currentSlot: slot }
+  document.addEventListener('mouseup', onDocumentMouseup)
+  document.addEventListener('selectstart', preventSelect)
+}
+
+function onCellMouseenter(room: Room, slot: { time: string }) {
+  if (!dragState.value.active || dragState.value.roomId !== room.id) return
+  dragState.value.currentSlot = slot
+}
+
+function onDocumentMouseup() {
+  document.removeEventListener('mouseup', onDocumentMouseup)
+  document.removeEventListener('selectstart', preventSelect)
+  if (!dragState.value.active) return
+
+  const { roomId, startSlot, currentSlot } = dragState.value
+  if (roomId && startSlot && currentSlot) {
+    const s1 = dayjs.tz(startSlot.time, 'Asia/Shanghai').valueOf()
+    const s2 = dayjs.tz(currentSlot.time, 'Asia/Shanghai').valueOf()
+    const startMs = Math.min(s1, s2)
+    const endMs = Math.max(s1, s2) + SLOT_MINUTES.value * 60 * 1000
+    showBookingDialog(null, roomId, dayjs(startMs).format('YYYY-MM-DDTHH:mm:ss'), dayjs(endMs).format('YYYY-MM-DDTHH:mm:ss'))
+  }
+  dragState.value = { active: false, roomId: null, startSlot: null, currentSlot: null }
+}
+
+function preventSelect(e: Event) {
+  e.preventDefault()
+}
 const dialogMode = ref<'create' | 'view'>('create')
 const dialogVisible = ref(false)
 const selectedBooking = ref<Booking | null>(null)
@@ -368,16 +422,19 @@ function disablePastDate(date: Date) {
   return dayjs(date).isBefore(dayjs(), 'day')
 }
 
-function showBookingDialog(_event?: MouseEvent, prefilledRoomId?: number, prefilledTime?: string) {
+function showBookingDialog(
+  _event?: MouseEvent,
+  prefilledRoomId?: number,
+  prefilledTime?: string,
+  prefilledEndTime?: string,
+) {
   dialogMode.value = 'create'
   conflicts.value = []
   Object.assign(form, {
     roomId: prefilledRoomId ?? (rooms.value[0]?.id ?? null),
     subject: '',
-    startTime: prefilledTime ? dayjs(prefilledTime).format('YYYY-MM-DDTHH:mm:ss') : '',
-    endTime: prefilledTime
-      ? dayjs(prefilledTime).add(1, 'hour').format('YYYY-MM-DDTHH:mm:ss')
-      : '',
+    startTime: prefilledTime ?? '',
+    endTime: prefilledEndTime ?? (prefilledTime ? dayjs(prefilledTime).add(1, 'hour').format('YYYY-MM-DDTHH:mm:ss') : ''),
     attendeeCount: 1,
     remark: '',
   })
@@ -628,6 +685,11 @@ onMounted(() => {
 .cell.past {
   background: #e8edf4;
   cursor: not-allowed;
+}
+
+.cell.selecting {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
 }
 
 .cell.free:hover::after {
