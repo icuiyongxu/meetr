@@ -7,51 +7,77 @@
       <el-form @submit.prevent="handleLogin">
         <el-form-item>
           <el-input
-            v-model="inputUserId"
-            placeholder="请输入工号 / userId"
+            v-model="form.userId"
+            placeholder="工号 / userId"
             size="large"
             prefix-icon="User"
             clearable
           />
         </el-form-item>
+        <el-form-item>
+          <el-input
+            v-model="form.password"
+            placeholder="密码（首次登录可为空）"
+            size="large"
+            prefix-icon="Lock"
+            show-password
+          />
+        </el-form-item>
         <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%">
-          进入系统
+          登录
         </el-button>
       </el-form>
 
       <div class="hint">
-        首次输入将自动注册为普通用户<br />
-        管理员请使用您的工号登录
+        首次输入工号将自动注册<br />
+        管理员账号：admin / 密码由初始化设置
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useBookingStore } from '@/stores/booking'
 
 const router = useRouter()
 const store = useBookingStore()
-const inputUserId = ref('')
 const loading = ref(false)
 
+const form = reactive({
+  userId: '',
+  password: '',
+})
+
 async function handleLogin() {
-  const id = inputUserId.value.trim()
-  if (!id) {
+  const userId = form.userId.trim()
+  if (!userId) {
     ElMessage.warning('请输入工号')
     return
   }
 
   loading.value = true
   try {
-    // 写入 localStorage 模拟登录
-    localStorage.setItem('meetr_user_id', id)
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password: form.password || null }),
+    })
+    const json = await res.json()
+    if (json.code !== 0) {
+      ElMessage.error(json.message || '登录失败')
+      return
+    }
+    const data = json.data
+    localStorage.setItem('meetr_user_id', data.userId)
+    localStorage.setItem('meetr_user_name', data.name || data.userId)
     store.ensureUser()
-    await store.login()
-    ElMessage.success(`欢迎，${store.userName || id}`)
+    store.isLoggedIn = true
+    store.isAdmin = data.roles?.includes('ADMIN') ?? false
+    if (data.name) store.setUserName(data.name)
+    ElMessage.success(`欢迎，${data.name || data.userId}`)
     router.push('/')
   } catch (e: any) {
     ElMessage.error(e?.message || '登录失败')

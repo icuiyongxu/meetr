@@ -24,6 +24,10 @@ public class SysUser {
     @Column(length = 100)
     private String name;
 
+    /** BCrypt 加密后的密码，null 表示未设置密码（老用户兼容） */
+    @Column(length = 255)
+    private String password;
+
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
 

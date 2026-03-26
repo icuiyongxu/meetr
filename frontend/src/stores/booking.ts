@@ -19,14 +19,14 @@ export const useBookingStore = defineStore('booking', () => {
     // 不再自动生成 ID，登录页负责写入
   }
 
-  /** 登录（自动注册）并拉取角色 */
-  async function login() {
+  /** 登录并拉取角色 */
+  async function login(password?: string) {
     if (!userId.value) return
     try {
-      const res = await fetch(`/api/auth/login?userId=${encodeURIComponent(userId.value)}`, {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        body: JSON.stringify({ userId: userId.value, password: password || null }),
       })
       if (res.ok) {
         const json = await res.json()

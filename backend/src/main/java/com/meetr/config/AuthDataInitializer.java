@@ -5,6 +5,7 @@ import com.meetr.domain.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,6 +21,8 @@ public class AuthDataInitializer implements CommandLineRunner {
     private final SysUserRoleRepository sysUserRoleRepository;
     private final SysPermissionRepository sysPermissionRepository;
     private final SysRolePermissionRepository sysRolePermissionRepository;
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /** 权限定义 */
     private static final List<PermissionDef> PERMISSIONS = List.of(
@@ -109,11 +112,16 @@ public class AuthDataInitializer implements CommandLineRunner {
         if (adminUserId == null || adminUserId.isBlank()) {
             adminUserId = "admin";
         }
+        String adminPassword = System.getenv("MEETR_ADMIN_PASSWORD");
+        if (adminPassword == null || adminPassword.isBlank()) {
+            adminPassword = "admin123";
+        }
 
         if (!sysUserRepository.existsByUserId(adminUserId)) {
             SysUser adminUser = SysUser.builder()
                 .userId(adminUserId)
                 .name("管理员")
+                .password(passwordEncoder.encode(adminPassword))
                 .status("ACTIVE")
                 .createdAtMs(System.currentTimeMillis())
                 .build();
@@ -124,7 +132,7 @@ public class AuthDataInitializer implements CommandLineRunner {
             ur.setRole(adminRole);
             sysUserRoleRepository.save(ur);
 
-            log.info("创建初始管理员用户: {}", adminUserId);
+            log.info("创建初始管理员: userId={}, password={}", adminUserId, adminPassword);
         }
 
         // 5. 给所有已存在但未分配角色的用户分配 USER 角色

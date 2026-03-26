@@ -1,10 +1,8 @@
 package com.meetr.controller;
 
 import com.meetr.config.RequirePermission;
-import com.meetr.domain.entity.*;
-import com.meetr.domain.repository.*;
 import com.meetr.service.AuthService;
-import lombok.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,67 +12,58 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminUserController {
 
-    private final SysUserRepository sysUserRepository;
-    private final SysRoleRepository sysRoleRepository;
-    private final SysUserRoleRepository sysUserRoleRepository;
     private final AuthService authService;
+
+    public record UserDTO(Long id, String userId, String name, String status, List<String> roles) {}
+    public record CreateUserRequest(String userId, String name, String password) {}
+    public record UpdateUserRequest(String name, String password, String status) {}
 
     @RequirePermission("user:view")
     @GetMapping
-    public ApiResponse<List<SysUserDTO>> list() {
-        return ApiResponse.ok(sysUserRepository.findAll().stream().map(u -> {
-            List<String> roles = authService.getUserRoles(u.getUserId());
-            return new SysUserDTO(u.getId(), u.getUserId(), u.getName(), u.getStatus(), roles);
-        }).toList());
+    public ApiResponse<List<UserDTO>> list() {
+        return ApiResponse.ok(authService.getAllUsers().stream()
+            .map(u -> new UserDTO(u.getId(), u.getUserId(), u.getName(), u.getStatus(), authService.getUserRoles(u.getUserId())))
+            .toList());
     }
 
     @RequirePermission("user:manage")
     @PostMapping
-    public ApiResponse<SysUserDTO> create(@RequestBody CreateUserRequest req) {
-        if (sysUserRepository.existsByUserId(req.userId())) {
-            throw new com.meetr.exception.BusinessException(40001, "用户已存在");
+    public ApiResponse<UserDTO> create(@RequestBody CreateUserRequest req) {
+        if (req.password() == null || req.password().isBlank()) {
+            throw new com.meetr.exception.BusinessException(40001, "密码不能为空");
         }
-        SysUser user = SysUser.builder()
-            .userId(req.userId())
-            .name(req.name() != null ? req.name() : req.userId())
-            .status("ACTIVE")
-            .createdAtMs(System.currentTimeMillis())
-            .build();
-        SysUser saved = sysUserRepository.save(user);
+        var user = authService.register(req.userId(), req.name(), req.password());
+        return ApiResponse.ok(new UserDTO(user.getId(), user.getUserId(), user.getName(), user.getStatus(), authService.getUserRoles(user.getUserId())));
+    }
 
-        // 分配 USER 角色
-        sysRoleRepository.findByCode("USER").ifPresent(userRole -> {
-            SysUserRole ur = new SysUserRole();
-            ur.setUser(saved);
-            ur.setRole(userRole);
-            sysUserRoleRepository.save(ur);
-        });
+    @RequirePermission("user:manage")
+    @PutMapping("/{id}")
+    public ApiResponse<UserDTO> update(@PathVariable Long id, @RequestBody UpdateUserRequest req) {
+        var user = authService.updateUser(id, req.name(), req.password(), req.status());
+        return ApiResponse.ok(new UserDTO(user.getId(), user.getUserId(), user.getName(), user.getStatus(), authService.getUserRoles(user.getUserId())));
+    }
 
-        return ApiResponse.ok(new SysUserDTO(saved.getId(), saved.getUserId(), saved.getName(), saved.getStatus(), List.of("USER")));
+    @RequirePermission("user:manage")
+    @PutMapping("/{id}/status")
+    public ApiResponse<UserDTO> setStatus(@PathVariable Long id, @RequestBody SetStatusRequest req) {
+        var user = authService.setUserStatus(id, req.status());
+        return ApiResponse.ok(new UserDTO(user.getId(), user.getUserId(), user.getName(), user.getStatus(), authService.getUserRoles(user.getUserId())));
+    }
+
+    @RequirePermission("user:manage")
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        authService.deleteUser(id);
+        return ApiResponse.ok(null);
     }
 
     @RequirePermission("user:manage")
     @PutMapping("/{id}/roles")
     public ApiResponse<Void> assignRoles(@PathVariable Long id, @RequestBody AssignRolesRequest req) {
-        SysUser user = sysUserRepository.findById(id)
-            .orElseThrow(() -> new com.meetr.exception.BusinessException(40001, "用户不存在"));
-
-        // 删除旧角色
-        sysUserRoleRepository.findByUserId(user.getId()).forEach(sysUserRoleRepository::delete);
-
-        // 分配新角色
-        for (String roleCode : req.roleCodes()) {
-            sysRoleRepository.findByCode(roleCode).ifPresent(role -> {
-                SysUserRole ur = new SysUserRole();
-                ur.setUser(user);
-                ur.setRole(role);
-                sysUserRoleRepository.save(ur);
-            });
-        }
+        authService.assignRoles(id, req.roleCodes());
         return ApiResponse.ok(null);
     }
 
-    public record SysUserDTO(Long id, String userId, String name, String status, List<String> roles) {}
-    public record CreateUserRequest(String userId, String name) {}
+    public record SetStatusRequest(String status) {}
     public record AssignRolesRequest(List<String> roleCodes) {}
 }

@@ -15,6 +15,8 @@
         </el-menu-item>
         <el-sub-menu v-if="store.isAdmin" index="/admin">
           <template #title>管理</template>
+          <el-menu-item index="/admin/buildings">楼栋管理</el-menu-item>
+          <el-menu-item index="/admin/rooms">会议室管理</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/roles">角色管理</el-menu-item>
           <el-menu-item index="/admin/config">规则配置</el-menu-item>
@@ -73,6 +75,8 @@ const titles: Record<string, string> = {
   '/admin/config': '规则配置',
   '/admin/users': '用户管理',
   '/admin/roles': '角色管理',
+  '/admin/buildings': '楼栋管理',
+  '/admin/rooms': '会议室管理',
 }
 const currentPageTitle = computed(() => titles[route.path] ?? 'Meetr')
 </script>
