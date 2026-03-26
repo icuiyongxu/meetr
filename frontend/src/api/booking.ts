@@ -18,6 +18,7 @@ export function createBooking(data: {
   startTime: number
   endTime: number
   attendeeCount: number
+  attendeeIds?: string[]
   remark?: string
   recurrenceType?: string
   recurrenceEndDate?: string
@@ -33,6 +34,7 @@ export function updateBooking(
     startTime: number
     endTime: number
     attendeeCount: number
+    attendeeIds?: string[]
     remark?: string
   },
 ) {
@@ -61,5 +63,17 @@ export function getBookingsByRoomAndDate(roomId: number, date: string) {
   // 使用北京时间偏移量 +08:00
   const dayMillis = new Date(date + 'T00:00:00+08:00').getTime()
   return unwrap<Booking[]>(http.get('/rooms/schedule', { params: { roomId, dayMillis } }))
+}
+
+export function searchBookings(params: {
+  bookerId: string
+  keyword?: string
+  status?: string
+  startTimeFrom?: number
+  startTimeTo?: number
+  page: number
+  size: number
+}) {
+  return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/bookings/search', { params }))
 }
 

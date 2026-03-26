@@ -3,10 +3,12 @@ package com.meetr.controller;
 import com.meetr.application.BookingApplicationService;
 import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.BookingResult;
+import com.meetr.application.dto.BookingSearchRequest;
 import com.meetr.application.dto.ConflictCheckRequest;
 import com.meetr.application.dto.ConflictCheckResponse;
 import com.meetr.application.dto.CreateBookingCommand;
 import com.meetr.application.dto.UpdateBookingCommand;
+import com.meetr.config.RequirePermission;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -14,14 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -33,23 +28,27 @@ public class BookingController {
 
     private final BookingApplicationService bookingApplicationService;
 
+    @RequirePermission("booking:manage")
     @PostMapping
     public ApiResponse<BookingResult> create(@Valid @RequestBody CreateBookingCommand command) {
         return ApiResponse.ok(bookingApplicationService.create(command));
     }
 
+    @RequirePermission("booking:manage")
     @PutMapping("/{id}")
     public ApiResponse<BookingResult> update(@PathVariable Long id, @Valid @RequestBody UpdateBookingCommand command) {
         command.setBookingId(id);
         return ApiResponse.ok(bookingApplicationService.update(command));
     }
 
+    @RequirePermission("booking:manage")
     @PostMapping("/{id}/cancel")
     public ApiResponse<Void> cancel(@PathVariable Long id, @Valid @RequestBody CancelBookingRequest request) {
         bookingApplicationService.cancel(id, request.getOperatorId(), Boolean.TRUE.equals(request.getCancelSeries()));
         return ApiResponse.ok(null);
     }
 
+    @RequirePermission("booking:view")
     @GetMapping("/{id}")
     public ApiResponse<BookingDTO> getById(@PathVariable Long id) {
         return ApiResponse.ok(bookingApplicationService.getById(id));
@@ -65,6 +64,14 @@ public class BookingController {
     @GetMapping("/today")
     public ApiResponse<List<BookingDTO>> today(@RequestParam String bookerId) {
         return ApiResponse.ok(bookingApplicationService.getTodayBookings(bookerId));
+    }
+
+    @RequirePermission("booking:view")
+    @GetMapping("/search")
+    public ApiResponse<Page<BookingDTO>> search(@ModelAttribute BookingSearchRequest request) {
+        if (request.getSize() <= 0) request.setSize(10);
+        if (request.getSize() > 100) request.setSize(100);
+        return ApiResponse.ok(bookingApplicationService.searchBookings(request));
     }
 
     @PostMapping("/check-conflict")

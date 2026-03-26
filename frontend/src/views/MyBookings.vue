@@ -3,6 +3,35 @@
     <div class="meetr-page-title">我的预约</div>
 
     <el-card shadow="never">
+      <!-- 搜索工具栏 -->
+      <div class="search-bar">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索会议主题"
+          clearable
+          style="width: 200px"
+          @keyup.enter="doSearch"
+        />
+        <el-date-picker
+          v-model="searchDateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          format="MM-DD"
+          value-format="YYYY-MM-DD"
+          style="width: 240px"
+          :clearable="true"
+        />
+        <el-select v-model="searchStatus" placeholder="状态" clearable style="width: 120px">
+          <el-option label="已预约" value="BOOKED" />
+          <el-option label="已取消" value="CANCELED" />
+          <el-option label="已完成" value="FINISHED" />
+        </el-select>
+        <el-button type="primary" @click="doSearch">搜索</el-button>
+        <el-button @click="resetSearch">重置</el-button>
+      </div>
+
       <el-tabs v-model="active" @tab-change="onTabChange">
         <el-tab-pane label="全部" name="all" />
         <el-tab-pane label="今日" name="today" />
@@ -59,9 +88,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+dayjs.extend(utc)
+dayjs.extend(timezone)
+
 import BookingList from '@/components/BookingList.vue'
 import type { Booking } from '@/types/booking'
-import { cancelBooking, getBooking, getMyBookings, getTodayBookings } from '@/api/booking'
+import { cancelBooking, getBooking, getMyBookings, getTodayBookings, searchBookings } from '@/api/booking'
 import { useBookingStore } from '@/stores/booking'
 import { formatRange } from '@/utils/datetime'
 
@@ -87,16 +122,17 @@ const page = ref(0)
 const size = ref(10)
 const total = ref(0)
 
+// 搜索状态
+const searchKeyword = ref('')
+const searchDateRange = ref<[string, string] | null>(null)
+const searchStatus = ref<string>('')
+const searchMode = ref(false)
+
 const viewBookings = computed(() => {
-  if (active.value === 'today') return todayBookings.value
-  if (active.value === 'pending') {
-    const start = page.value * size.value
-    return pendingAll.value.slice(start, start + size.value)
-  }
   return allBookings.value
 })
 
-const showPagination = computed(() => active.value !== 'today')
+const showPagination = computed(() => searchMode.value || active.value !== 'today')
 
 async function loadAll() {
   loading.value = true
@@ -107,6 +143,41 @@ async function loadAll() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadSearch() {
+  loading.value = true
+  try {
+    const [from, to] = searchDateRange.value ?? [null, null]
+    const p = await searchBookings({
+      bookerId: store.userId,
+      keyword: searchKeyword.value || undefined,
+      status: searchStatus.value || undefined,
+      startTimeFrom: from ? dayjs.tz(`${from} 00:00:00`, 'Asia/Shanghai').valueOf() : undefined,
+      startTimeTo: to ? dayjs.tz(`${to} 23:59:59`, 'Asia/Shanghai').valueOf() : undefined,
+      page: page.value,
+      size: size.value,
+    })
+    allBookings.value = p.content || []
+    total.value = p.totalElements ?? allBookings.value.length
+  } finally {
+    loading.value = false
+  }
+}
+
+async function doSearch() {
+  page.value = 0
+  searchMode.value = !!(searchKeyword.value || searchDateRange.value || searchStatus.value)
+  await reload()
+}
+
+async function resetSearch() {
+  searchKeyword.value = ''
+  searchDateRange.value = null
+  searchStatus.value = ''
+  page.value = 0
+  searchMode.value = false
+  await loadAll()
 }
 
 async function loadToday() {
@@ -131,6 +202,7 @@ async function loadPending() {
 }
 
 async function reload() {
+  if (searchMode.value) return loadSearch()
   if (active.value === 'today') return loadToday()
   if (active.value === 'pending') return loadPending()
   return loadAll()
@@ -144,7 +216,7 @@ function onTabChange() {
 
 function changePage(p: number) {
   page.value = p
-  if (active.value === 'all') reload()
+  reload()
 }
 
 function changeSize(s: number) {
@@ -206,6 +278,14 @@ onMounted(() => reload())
 </script>
 
 <style scoped>
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
 .pager {
   margin-top: 14px;
   display: flex;

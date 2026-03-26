@@ -1,23 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import CalendarView from '@/views/CalendarView.vue'
-import BookingPage from '@/views/BookingPage.vue'
-import MyBookings from '@/views/MyBookings.vue'
-import RoomManage from '@/views/RoomManage.vue'
-import BuildingManage from '@/views/BuildingManage.vue'
-import ConfigManage from '@/views/ConfigManage.vue'
+const routes = [
+  { path: '/login', component: () => import('@/views/Login.vue') },
+  { path: '/', component: () => import('@/views/CalendarView.vue') },
+  { path: '/my-bookings', component: () => import('@/views/MyBookings.vue') },
+  { path: '/admin/config', component: () => import('@/views/ConfigManage.vue') },
+  { path: '/admin/users', component: () => import('@/views/admin/UserManage.vue') },
+  { path: '/admin/roles', component: () => import('@/views/admin/RoleManage.vue') },
+]
 
-const router = createRouter({
+export default createRouter({
   history: createWebHistory(),
-  routes: [
-    { path: '/', component: CalendarView },
-    { path: '/booking/:roomId', component: BookingPage },
-    { path: '/my-bookings', component: MyBookings },
-    { path: '/admin/buildings', component: BuildingManage },
-    { path: '/admin/rooms', component: RoomManage },
-    { path: '/admin/config', component: ConfigManage },
-  ],
+  routes,
 })
-
-export default router
-

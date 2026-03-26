@@ -63,6 +63,9 @@ public class RoomConfig extends BaseEntity {
     @Column(nullable = false, length = 20)
     private RoomStatus status = RoomStatus.ENABLED;
 
+    /** 管理员 userId 列表，逗号分隔。匹配到即为 ADMIN 角色 */
+    private String adminUserIds;
+
     public LocalTime getMorningStartsAsTime() {
         return LocalTime.parse(morningStarts);
     }

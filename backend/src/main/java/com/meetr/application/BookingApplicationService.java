@@ -4,6 +4,7 @@ import com.meetr.application.dto.BookingAttendeeDTO;
 import com.meetr.application.dto.BookingConflictDTO;
 import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.BookingResult;
+import com.meetr.application.dto.BookingSearchRequest;
 import com.meetr.application.dto.ConflictCheckRequest;
 import com.meetr.application.dto.ConflictCheckResponse;
 import com.meetr.application.dto.CreateBookingCommand;
@@ -230,6 +231,18 @@ public class BookingApplicationService {
         return bookingRepository.findTodayBookings(bookerId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
+    }
+
+    public Page<BookingDTO> searchBookings(BookingSearchRequest req) {
+        return bookingRepository.searchBookings(
+            req.getBookerId(),
+            req.getKeyword(),
+            req.getRoomId(),
+            req.getStatus(),
+            req.getStartTimeFrom(),
+            req.getStartTimeTo(),
+            org.springframework.data.domain.PageRequest.of(req.getPage(), req.getSize())
+        ).map(this::toDto);
     }
 
     /** 查询指定会议室指定日期的全部预约（供日历视图使用） */

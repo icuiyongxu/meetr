@@ -36,6 +36,24 @@
         <el-input-number v-model="form.attendeeCount" :min="1" :max="999" />
       </el-form-item>
 
+      <el-form-item label="参会人" prop="attendeeIds">
+        <el-select
+          v-model="form.attendeeIds"
+          multiple
+          filterable
+          placeholder="搜索并选择参会人"
+          style="width: 100%"
+          :loading="usersLoading"
+        >
+          <el-option
+            v-for="u in allUsers"
+            :key="u.userId"
+            :label="u.name + ' (' + u.userId + ')'"
+            :value="u.userId"
+          />
+        </el-select>
+      </el-form-item>
+
       <el-form-item label="备注" prop="remark">
         <el-input v-model="form.remark" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
       </el-form-item>
@@ -49,11 +67,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import dayjs from 'dayjs'
 import { checkConflict, createBooking } from '@/api/booking'
+import { getUsers } from '@/api/user'
 import { useBookingStore } from '@/stores/booking'
+import type { UserItem } from '@/api/user'
 import type { BookingConflictDTO } from '@/types/booking'
 
 const props = defineProps<{
@@ -70,6 +90,8 @@ const store = useBookingStore()
 
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
+const allUsers = ref<UserItem[]>([])
+const usersLoading = ref(false)
 
 const initial = computed(() => {
   const nowPlus = dayjs().add(1, 'hour').startOf('minute').toDate()
@@ -79,15 +101,17 @@ const initial = computed(() => {
     startTime: props.initialSlot?.start || nowPlus,
     endTime: props.initialSlot?.end || endPlus,
     attendeeCount: 1,
+    attendeeIds: [] as string[],
     remark: '',
   }
-})
+}
 
 const form = reactive({
   subject: '',
   startTime: new Date(),
   endTime: new Date(),
   attendeeCount: 1,
+  attendeeIds: [] as string[],
   remark: '',
 })
 
@@ -97,6 +121,7 @@ function resetToInitial() {
   form.startTime = v.startTime
   form.endTime = v.endTime
   form.attendeeCount = v.attendeeCount
+  form.attendeeIds = v.attendeeIds
   form.remark = v.remark
   emit('conflict', [])
 }
@@ -112,6 +137,15 @@ watch(
 )
 
 resetToInitial()
+
+onMounted(async () => {
+  usersLoading.value = true
+  try {
+    allUsers.value = await getUsers()
+  } finally {
+    usersLoading.value = false
+  }
+})
 
 const rules: FormRules = {
   subject: [{ required: true, message: '请输入会议主题', trigger: 'blur' }],
@@ -177,6 +211,7 @@ async function onSubmit() {
       startTime: dayjs.tz(form.startTime, 'Asia/Shanghai').valueOf(),
       endTime: dayjs.tz(form.endTime, 'Asia/Shanghai').valueOf(),
       attendeeCount: form.attendeeCount,
+      attendeeIds: form.attendeeIds,
       remark: form.remark?.trim() || undefined,
     })
 

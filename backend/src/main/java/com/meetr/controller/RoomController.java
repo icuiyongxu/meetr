@@ -6,18 +6,12 @@ import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.RoomDTO;
 import com.meetr.application.dto.RoomStatusUpdateRequest;
 import com.meetr.application.dto.RoomUpsertRequest;
+import com.meetr.config.RequirePermission;
 import com.meetr.domain.enums.RoomStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,6 +34,7 @@ public class RoomController {
     }
 
     /** 日历视图用：dayMillis = UTC 毫秒（北京时间当天 00:00:00） */
+    @RequirePermission("booking:view")
     @GetMapping("/api/rooms/schedule")
     public ApiResponse<List<BookingDTO>> getRoomSchedule(
             @RequestParam Long roomId,
@@ -62,16 +57,19 @@ public class RoomController {
         return ApiResponse.ok(roomApplicationService.getById(id));
     }
 
+    @RequirePermission("room:manage")
     @PostMapping("/api/admin/rooms")
     public ApiResponse<RoomDTO> create(@Valid @RequestBody RoomUpsertRequest request) {
         return ApiResponse.ok(roomApplicationService.create(request));
     }
 
+    @RequirePermission("room:manage")
     @PutMapping("/api/admin/rooms/{id}")
     public ApiResponse<RoomDTO> update(@PathVariable Long id, @Valid @RequestBody RoomUpsertRequest request) {
         return ApiResponse.ok(roomApplicationService.update(id, request));
     }
 
+    @RequirePermission("room:manage")
     @PutMapping("/api/admin/rooms/{id}/status")
     public ApiResponse<RoomDTO> updateStatus(@PathVariable Long id, @Valid @RequestBody RoomStatusUpdateRequest request) {
         return ApiResponse.ok(roomApplicationService.updateStatus(id, request));

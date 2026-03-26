@@ -114,4 +114,5 @@ public class RoomConfigApplicationService {
         dto.setStatus(config.getStatus());
         return dto;
     }
+
 }

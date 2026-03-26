@@ -73,4 +73,24 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * @param seriesId 主预约 ID
      */
     List<Booking> findByParentIdOrderBySeriesIndexAsc(Long seriesId);
+
+    @Query("""
+        select b from Booking b
+        where (:bookerId is null or b.bookerId = :bookerId)
+          and (:keyword is null or lower(b.subject) like lower(concat('%', :keyword, '%')))
+          and (:roomId is null or b.roomId = :roomId)
+          and (:status is null or b.status = :status)
+          and (:startTimeFrom is null or b.startTimeMs >= :startTimeFrom)
+          and (:startTimeTo is null or b.startTimeMs <= :startTimeTo)
+        order by b.startTimeMs desc
+        """)
+    Page<Booking> searchBookings(
+        @Param("bookerId") String bookerId,
+        @Param("keyword") String keyword,
+        @Param("roomId") Long roomId,
+        @Param("status") String status,
+        @Param("startTimeFrom") Long startTimeFrom,
+        @Param("startTimeTo") Long startTimeTo,
+        Pageable pageable
+    );
 }
