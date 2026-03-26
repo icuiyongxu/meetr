@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BookingList from '@/components/BookingList.vue'
 import type { Booking } from '@/types/booking'
@@ -171,6 +171,8 @@ async function askCancel(b: Booking) {
   ElMessage.success('已取消')
   await reload()
 }
+
+onMounted(() => reload())
 </script>
 
 <style scoped>
