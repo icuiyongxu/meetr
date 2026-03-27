@@ -18,8 +18,7 @@
         <span class="date-label">{{ formattedDate }}</span>
       </div>
       <div class="toolbar-right">
-        <el-select v-model="selectedBuildingId" filterable clearable placeholder="全部楼栋" size="default" @change="loadData">
-          <el-option label="全部楼栋" :value="undefined" />
+        <el-select v-model="selectedBuildingId" filterable clearable placeholder="全部楼栋" size="default" @change="loadData" style="min-width: 200px">
           <el-option v-for="b in buildings" :key="b.id" :label="b.name" :value="b.id" />
         </el-select>
         <el-button type="primary" @click="showBookingDialog(undefined)">+ 新建预约</el-button>
