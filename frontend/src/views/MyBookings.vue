@@ -38,7 +38,7 @@
         <el-tab-pane label="待审批" name="pending" />
       </el-tabs>
 
-      <BookingList :bookings="viewBookings" :loading="loading" @view="openDetail" @cancel="askCancel" />
+      <BookingList :bookings="viewBookings" :loading="loading" @view="openDetail" @view-series="openSeries" @cancel="askCancel" />
 
       <div class="pager" v-if="showPagination">
         <el-pagination
@@ -53,6 +53,8 @@
         />
       </div>
     </el-card>
+
+    <SeriesDetail v-model="seriesVisible" :booking-id="seriesBookingId" :booker-id="store.userId" @series-updated="reload" />
 
     <el-dialog v-model="detailVisible" title="预约详情" width="520px">
       <template v-if="detail">
@@ -90,6 +92,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Booking } from '@/types/booking'
 import BookingList from '@/components/BookingList.vue'
+import SeriesDetail from '@/components/SeriesDetail.vue'
 import { cancelBooking, getBooking, getMyBookings, getTodayBookings, searchBookings } from '@/api/booking'
 import { useBookingStore } from '@/stores/booking'
 import { businessDayEndMs, businessDayStartMs, formatRange } from '@/utils/datetime'
@@ -224,6 +227,9 @@ function changeSize(s: number) {
 const detailVisible = ref(false)
 const detail = ref<Booking | null>(null)
 
+const seriesVisible = ref(false)
+const seriesBookingId = ref<number | undefined>(undefined)
+
 async function openDetail(b: Booking) {
   detailVisible.value = true
   detail.value = null
@@ -232,6 +238,11 @@ async function openDetail(b: Booking) {
   } catch {
     detailVisible.value = false
   }
+}
+
+function openSeries(b: Booking) {
+  seriesBookingId.value = b.id
+  seriesVisible.value = true
 }
 
 async function askCancel(b: Booking) {

@@ -355,6 +355,76 @@ public class BookingApplicationService {
         return dto;
     }
 
+    /**
+     * 获取某个预约所属系列的所有预约（包含主预约）。
+     * 传入 bookingId 可以是任意一次（主预约或子预约）。
+     */
+    public SeriesBookingResponse getSeriesBookings(Long bookingId, String bookerId) {
+        Booking seed = bookingMapper.findById(bookingId);
+        if (seed == null) {
+            throw new BusinessException(40001, "预约不存在");
+        }
+        if (!seed.getBookerId().equals(bookerId)) {
+            throw new BusinessException(40301, "无权查看该预约");
+        }
+
+        List<Booking> all = bookingMapper.findSeriesBookings(bookingId, bookerId);
+        if (all.isEmpty()) {
+            throw new BusinessException(40001, "系列不存在");
+        }
+
+        Booking master = all.get(0);
+        List<BookingDTO> instances = all.stream()
+            .skip(1) // 第一个是 master
+            .map(this::toDto)
+            .toList();
+
+        SeriesBookingResponse resp = new SeriesBookingResponse();
+        resp.setMaster(toDto(master));
+        resp.setInstances(instances);
+        resp.setTotalCount(all.size());
+        return resp;
+    }
+
+    /**
+     * 批量修改系列中从 fromSeriesIndex 开始的所有未来预约的时间。
+     * 计算 master 时间偏移量，施加到每个子预约上，保持各自的日期不变。
+     * 不改变其他字段，不做冲突检测（系列内部时间本身不应冲突）。
+     */
+    @Transactional
+    public SeriesBookingResponse updateFutureSeries(Long bookingId, String operatorId,
+                                                   UpdateFutureSeriesRequest req) {
+        SeriesBookingResponse series = getSeriesBookings(bookingId, operatorId);
+        Booking masterEntity = bookingMapper.findById(series.getMaster().getId());
+
+        // 时间偏移量
+        long offsetMs = req.getNewStartTimeMs() - masterEntity.getStartTimeMs();
+        long newEndMs = req.getNewEndTimeMs();
+
+        List<Booking> allForLog = bookingMapper.findSeriesBookings(bookingId, operatorId);
+        for (Booking child : allForLog) {
+            if (child.getSeriesIndex() < req.getFromSeriesIndex()) {
+                continue; // 跳过主预约和修改范围之前的
+            }
+            if (child.getStatus() == com.meetr.domain.enums.BookingStatus.CANCELED) {
+                continue;
+            }
+
+            // 新时间 = 原时间 + 偏移量，保持各自的日期
+            long shiftedStart = child.getStartTimeMs() + offsetMs;
+            long shiftedEnd   = child.getEndTimeMs() + offsetMs;
+
+            child.setStartTimeMs(shiftedStart);
+            child.setEndTimeMs(shiftedEnd);
+            bookingMapper.update(child);
+        }
+
+        saveLog(masterEntity.getId(), "UPDATE_FUTURE", operatorId, operatorId,
+            "修改系列第" + req.getFromSeriesIndex() + "场及后续预约的时间");
+
+        return getSeriesBookings(bookingId, operatorId);
+    }
+
     public record PageResult<T>(List<T> content, long totalElements) {
     }
 }

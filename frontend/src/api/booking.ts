@@ -77,3 +77,28 @@ export function searchBookings(params: {
   return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/bookings/search', { params }))
 }
 
+// ── 系列预约 ──────────────────────────────────────────────
+
+export interface SeriesBookingResponse {
+  master: Booking
+  instances: Booking[]
+  totalCount: number
+}
+
+export interface UpdateFutureSeriesRequest {
+  operatorId: string
+  newStartTimeMs: number
+  newEndTimeMs: number
+  fromSeriesIndex: number
+}
+
+/** 获取某个预约所属系列的所有预约（主预约 + 子预约列表） */
+export function getSeriesBookings(bookingId: number, bookerId: string) {
+  return unwrap<SeriesBookingResponse>(http.get(`/bookings/${bookingId}/series`, { params: { bookerId } }))
+}
+
+/** 批量修改系列中从 fromSeriesIndex 开始的后续预约时间 */
+export function updateFutureSeries(bookingId: number, data: UpdateFutureSeriesRequest) {
+  return unwrap<SeriesBookingResponse>(http.put(`/bookings/${bookingId}/future`, data))
+}
+

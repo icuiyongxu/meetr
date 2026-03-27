@@ -36,9 +36,18 @@
       </template>
     </el-table-column>
 
-    <el-table-column label="操作" width="180" fixed="right">
+    <el-table-column label="操作" width="220" fixed="right">
       <template #default="{ row }">
         <el-button size="small" @click="emit('view', row)">查看</el-button>
+        <el-button
+          v-if="row.recurrenceType && row.recurrenceType !== 'NONE'"
+          size="small"
+          type="warning"
+          plain
+          @click="emit('view-series', row)"
+        >
+          系列
+        </el-button>
         <el-button
           size="small"
           type="danger"
@@ -64,6 +73,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'view', booking: Booking): void
+  (e: 'view-series', booking: Booking): void
   (e: 'cancel', booking: Booking): void
 }>()
 

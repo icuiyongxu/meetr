@@ -7,7 +7,9 @@ import com.meetr.application.dto.BookingSearchRequest;
 import com.meetr.application.dto.ConflictCheckRequest;
 import com.meetr.application.dto.ConflictCheckResponse;
 import com.meetr.application.dto.CreateBookingCommand;
+import com.meetr.application.dto.SeriesBookingResponse;
 import com.meetr.application.dto.UpdateBookingCommand;
+import com.meetr.application.dto.UpdateFutureSeriesRequest;
 import com.meetr.config.RequirePermission;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -83,5 +85,30 @@ public class BookingController {
         @NotBlank
         private String operatorId;
         private Boolean cancelSeries;
+    }
+
+    /**
+     * 获取某个预约所属系列的所有预约（主预约 + 子预约列表）。
+     * 传入任意一次预约的 ID 即可。
+     */
+    @RequirePermission("booking:view")
+    @GetMapping("/{id}/series")
+    public ApiResponse<SeriesBookingResponse> getSeriesBookings(
+            @PathVariable Long id,
+            @RequestParam String bookerId) {
+        return ApiResponse.ok(bookingApplicationService.getSeriesBookings(id, bookerId));
+    }
+
+    /**
+     * 批量修改系列中从指定序号开始的未来所有预约的时间。
+     * 仅修改时间字段，不改变其他内容。
+     */
+    @RequirePermission("booking:manage")
+    @PutMapping("/{id}/future")
+    public ApiResponse<SeriesBookingResponse> updateFutureSeries(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateFutureSeriesRequest request) {
+        return ApiResponse.ok(
+            bookingApplicationService.updateFutureSeries(id, request.getOperatorId(), request));
     }
 }
