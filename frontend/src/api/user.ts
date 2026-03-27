@@ -6,6 +6,26 @@ export interface UserItem {
   name: string
   status: string
   roles: string[]
+  email?: string
+  emailEnabled?: boolean
+}
+
+export interface UserProfile {
+  id: number
+  userId: string
+  name: string
+  status: string
+  roles: string[]
+  email?: string
+  emailEnabled?: boolean
+}
+
+export async function getUserProfile(userId: string): Promise<UserProfile> {
+  return unwrap(http.get('/auth/me', { params: { userId } }))
+}
+
+export async function updateProfile(data: { userId: string; name?: string; password?: string; email?: string; emailEnabled?: boolean }) {
+  return unwrap(http.put('/auth/profile', data))
 }
 
 export async function getUsers(): Promise<UserItem[]> {
