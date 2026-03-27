@@ -706,17 +706,7 @@ onMounted(() => {
 /* ── 日历网格 ─────────────────────────────────────────── */
 .grid {
   display: grid;
-  /* gridTemplateColumns 由 :style 动态设置: 80px + repeat(N, 1fr) */
   min-width: 600px;
-  /* repeating-linear-gradient 每 72px = 2×36px 循环：白→灰→白→灰
-     36px = 一个时间格高度，保证行条纹与格子边界对齐 */
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--slot-even) 0px,
-    var(--slot-even) 36px,
-    var(--slot-odd)  36px,
-    var(--slot-odd)  72px
-  );
 }
 
 .corner {
@@ -777,7 +767,7 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* ── 格子：透明背景，透出 grid 渐变形成行条纹 ─────────── */
+/* ── 格子 ─────────────────────────────────────────── */
 .cell {
   height: 36px;
   border-right: 1px solid var(--slot-border);
@@ -785,7 +775,7 @@ onMounted(() => {
   position: relative;
   cursor: pointer;
   transition: background 0.1s;
-  background: transparent; /* 透出 grid 渐变背景 */
+  background: var(--slot-even);
 }
 
 .cell:last-child {
