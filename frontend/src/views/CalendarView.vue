@@ -644,7 +644,31 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ── MRBS 风格配色变量 ─────────────────────────────────── */
 .calendar-view {
+  --slot-even: #ffffff;
+  --slot-odd:  #f4f5f7;
+  --slot-border: #e2e4e9;
+
+  --book-own-bg:     #d1fae5;
+  --book-own-border: #16a34a;
+  --book-own-text:   #15803d;
+
+  --book-other-bg:     #eff6ff;
+  --book-other-border: #3b82f6;
+  --book-other-text:   #1d4ed8;
+
+  --book-pending-bg:      #fef9c3;
+  --book-pending-border:  #eab308;
+  --book-pending-text:    #a16207;
+
+  --book-canceled-bg:   #f3f4f6;
+  --book-canceled-text: #9ca3af;
+
+  --drag-bg:   rgba(59, 130, 246, 0.10);
+  --past-bg:   #e8edf4;
+  --today-bg:  rgba(239, 68, 68, 0.05);
+
   display: flex;
   flex-direction: column;
   height: calc(100vh - 120px);
@@ -675,7 +699,7 @@ onMounted(() => {
 .calendar-wrap {
   flex: 1;
   overflow: auto;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--slot-border);
   border-radius: 8px;
 }
 
@@ -692,8 +716,8 @@ onMounted(() => {
   left: 0;
   z-index: 3;
   background: var(--el-bg-color-page);
-  border-right: 1px solid var(--el-border-color-light);
-  border-bottom: 1px solid var(--el-border-color-light);
+  border-right: 1px solid var(--slot-border);
+  border-bottom: 1px solid var(--slot-border);
 }
 
 .room-header {
@@ -701,8 +725,8 @@ onMounted(() => {
   top: 0;
   z-index: 2;
   background: var(--el-bg-color-page);
-  border-right: 1px solid var(--el-border-color-light);
-  border-bottom: 2px solid var(--el-border-color-light);
+  border-right: 1px solid var(--slot-border);
+  border-bottom: 2px solid var(--slot-border);
   padding: 8px 6px;
   text-align: center;
   overflow: hidden;
@@ -732,8 +756,8 @@ onMounted(() => {
   left: 0;
   z-index: 1;
   background: var(--el-bg-color-page);
-  border-right: 1px solid var(--el-border-color-light);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-right: 1px solid var(--slot-border);
+  border-bottom: 1px solid var(--slot-border);
   padding: 0 6px;
   font-size: 11px;
   color: var(--el-text-color-secondary);
@@ -744,10 +768,12 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+/* ── 格子：MRBS 灰白交替背景 ─────────────────────────── */
+/* nth-child(2n) 对应横向第2格开始（corner 占第1格），偶数格白，基数格浅灰 */
 .cell {
   height: 36px;
-  border-right: 1px solid var(--el-border-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-right: 1px solid var(--slot-border);
+  border-bottom: 1px solid var(--slot-border);
   position: relative;
   cursor: pointer;
   transition: background 0.1s;
@@ -757,18 +783,23 @@ onMounted(() => {
   border-right: none;
 }
 
+/* 每个房间列各自独立交替：同列同色，形成竖向斑马条纹 */
+.cell:nth-child(4n + 2) { background: var(--slot-even); } /* 偶数行偶数列 = 白 */
+.cell:nth-child(4n + 3) { background: var(--slot-odd);  } /* 奇数行偶数列 = 浅灰 */
+.cell:nth-child(4n + 4) { background: var(--slot-even); } /* 偶数行奇数列 = 白 */
+.cell:nth-child(4n + 5) { background: var(--slot-odd);  } /* 奇数行奇数列 = 浅灰 */
+
 .cell:hover:not(.booked) {
-  background: var(--el-color-primary-light-9);
+  background: var(--drag-bg);
 }
 
 .cell.past {
-  background: #e8edf4;
+  background: var(--past-bg);
   cursor: not-allowed;
 }
 
 .cell.selecting {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary-light-5);
+  background: var(--drag-bg);
 }
 
 .cell.free:hover::after {
@@ -779,12 +810,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: var(--el-color-primary);
+  color: #3b82f6;
   font-weight: 700;
   pointer-events: none;
 }
 
-/* ── 预约色块 ─────────────────────────────────────────── */
+/* ── 预约色块（MRBS 风格：绿色=本人，蓝色=他人）────────── */
 .booking-block {
   position: absolute;
   left: 2px;
@@ -803,21 +834,21 @@ onMounted(() => {
 }
 
 .booking-block.is-own {
-  background: var(--el-color-primary-light-8);
-  border-left: 3px solid var(--el-color-primary);
-  color: var(--el-color-primary);
+  background: var(--book-own-bg);
+  border-left: 3px solid var(--book-own-border);
+  color: var(--book-own-text);
 }
 
 .booking-block.is-others {
-  background: var(--el-color-success-light-8);
-  border-left: 3px solid var(--el-color-success);
-  color: var(--el-color-success);
+  background: var(--book-other-bg);
+  border-left: 3px solid var(--book-other-border);
+  color: var(--book-other-text);
 }
 
 .booking-block.is-canceled {
-  background: var(--el-fill-color-dark);
-  border-left: 3px solid var(--el-border-color);
-  color: var(--el-text-color-secondary);
+  background: var(--book-canceled-bg);
+  border-left: 3px solid #d1d5db;
+  color: var(--book-canceled-text);
   text-decoration: line-through;
 }
 
@@ -829,11 +860,13 @@ onMounted(() => {
 }
 
 .recurring-badge {
-  color: var(--el-color-primary);
   font-size: 12px;
   margin-right: 2px;
   flex-shrink: 0;
 }
+
+.is-own .recurring-badge    { color: var(--book-own-text); }
+.is-others .recurring-badge { color: var(--book-other-text); }
 
 .booking-time {
   opacity: 0.8;
