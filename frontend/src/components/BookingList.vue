@@ -54,7 +54,6 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
 import type { Booking } from '@/types/booking'
 import { formatRange, isPast } from '@/utils/datetime'
 

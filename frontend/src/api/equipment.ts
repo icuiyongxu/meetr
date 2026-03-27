@@ -8,17 +8,23 @@ export interface Equipment {
 }
 
 export async function getEquipments(): Promise<Equipment[]> {
-  return unwrap(http.get<Equipment[]>('/equipments'))
+  return unwrap(http.get<ApiResponseLike<Equipment[]>>('/equipments') as any)
 }
 
 export async function createEquipment(data: { code: string; name: string }) {
-  return unwrap(http.post<Equipment>('/admin/equipments', data))
+  return unwrap(http.post<ApiResponseLike<Equipment>>('/admin/equipments', data) as any)
 }
 
 export async function updateEquipment(id: number, data: { name?: string; status?: string }) {
-  return unwrap(http.put<Equipment>(`/admin/equipments/${id}`, data))
+  return unwrap(http.put<ApiResponseLike<Equipment>>(`/admin/equipments/${id}`, data) as any)
 }
 
 export async function deleteEquipment(id: number) {
-  return unwrap(http.delete(`/admin/equipments/${id}`))
+  return unwrap(http.delete<ApiResponseLike<unknown>>(`/admin/equipments/${id}`) as any)
+}
+
+type ApiResponseLike<T> = {
+  code: number
+  message: string
+  data: T
 }

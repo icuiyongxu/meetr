@@ -1,13 +1,11 @@
 package com.meetr.domain.service;
 
+import com.meetr.common.BusinessTime;
 import com.meetr.domain.enums.RecurrenceType;
-import com.meetr.domain.vo.TimeSlot;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,58 +19,55 @@ public class RecurrenceExpander {
     /** 最大实例数保护，防止 endDate 设置过大 */
     private static final int MAX_INSTANCES = 180;
 
-    private static final ZoneOffset UTC = ZoneOffset.UTC;
-
     /**
-     * 展开所有子实例（不含第一次），返回每次的 startMs/endMs。
-     * 如果 recurrenceType == NONE，返回空列表。
+     * 以业务时区（当前固定为东八区）展开所有子实例（不含第一次），返回每次的 startMs/endMs。
      */
     public List<long[]> expand(LocalDateTime firstStart, LocalDateTime firstEnd,
-                                RecurrenceType type, LocalDate endDate) {
+                               RecurrenceType type, LocalDate endDate) {
         List<long[]> result = new ArrayList<>();
         if (type == null || type == RecurrenceType.NONE || endDate == null) {
             return result;
         }
 
-        LocalDate firstDate = firstStart.toLocalDate();
+        LocalDateTime firstStartLocal = BusinessTime.msToBusinessLocalDateTime(BusinessTime.utcLocalDateTimeToMs(firstStart));
+        LocalDateTime firstEndLocal = BusinessTime.msToBusinessLocalDateTime(BusinessTime.utcLocalDateTimeToMs(firstEnd));
+
+        LocalDate firstDate = firstStartLocal.toLocalDate();
         if (endDate.isBefore(firstDate) || endDate.isEqual(firstDate)) {
             return result;
         }
 
-        long durationMs = firstEnd.toEpochSecond(UTC) * 1000 - firstStart.toEpochSecond(UTC) * 1000;
         LocalDate cur = nextDate(firstDate, type);
-
         while (!cur.isAfter(endDate) && result.size() < MAX_INSTANCES) {
-            LocalDateTime s = cur.atTime(firstStart.toLocalTime());
-            LocalDateTime e = cur.atTime(firstEnd.toLocalTime());
+            LocalDateTime startLocal = cur.atTime(firstStartLocal.toLocalTime());
+            LocalDateTime endLocal = cur.atTime(firstEndLocal.toLocalTime());
             result.add(new long[] {
-                s.toEpochSecond(UTC) * 1000,
-                e.toEpochSecond(UTC) * 1000
+                BusinessTime.businessLocalDateTimeToMs(startLocal),
+                BusinessTime.businessLocalDateTimeToMs(endLocal)
             });
             cur = nextDate(cur, type);
         }
         return result;
     }
 
-    /**
-     * 计算从 start 起第 n 个实例（n 从1开始）的 UTC 毫秒。
-     * 用于按需生成（目前暂未启用，先做一次性展开）。
-     */
     public long[] instanceAt(LocalDateTime firstStart, LocalDateTime firstEnd,
-                              RecurrenceType type, int index) {
+                             RecurrenceType type, int index) {
         if (index <= 0) {
             throw new IllegalArgumentException("index starts from 1");
         }
-        long durationMs = firstEnd.toEpochSecond(UTC) * 1000 - firstStart.toEpochSecond(UTC) * 1000;
-        LocalDate firstDate = firstStart.toLocalDate();
-        LocalDate cur = firstDate;
+
+        LocalDateTime firstStartLocal = BusinessTime.msToBusinessLocalDateTime(BusinessTime.utcLocalDateTimeToMs(firstStart));
+        LocalDateTime firstEndLocal = BusinessTime.msToBusinessLocalDateTime(BusinessTime.utcLocalDateTimeToMs(firstEnd));
+        LocalDate cur = firstStartLocal.toLocalDate();
         for (int i = 1; i < index; i++) {
             cur = nextDate(cur, type);
         }
-        LocalDateTime s = cur.atTime(firstStart.toLocalTime());
+
+        LocalDateTime startLocal = cur.atTime(firstStartLocal.toLocalTime());
+        LocalDateTime endLocal = cur.atTime(firstEndLocal.toLocalTime());
         return new long[] {
-            s.toEpochSecond(UTC) * 1000,
-            s.toEpochSecond(UTC) * 1000 + durationMs
+            BusinessTime.businessLocalDateTimeToMs(startLocal),
+            BusinessTime.businessLocalDateTimeToMs(endLocal)
         };
     }
 
@@ -87,14 +82,7 @@ public class RecurrenceExpander {
                 }
                 yield next;
             }
-            case MONTHLY -> {
-                LocalDate next = from.plusMonths(1);
-                // 如果日号溢出（如 31→2月），取该月最后一天
-                while (next.getDayOfMonth() != from.getDayOfMonth() && next.getMonth() != from.getMonth().plus(1)) {
-                    next = next.minusDays(1);
-                }
-                yield next;
-            }
+            case MONTHLY -> from.plusMonths(1);
             default -> from.plusDays(1);
         };
     }

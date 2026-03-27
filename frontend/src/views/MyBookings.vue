@@ -48,8 +48,8 @@
           :page-sizes="[10, 20, 50]"
           :current-page="page + 1"
           :total="total"
-          @current-change="(p) => changePage(p - 1)"
-          @size-change="(s) => changeSize(s)"
+          @current-change="(p: number) => changePage(p - 1)"
+          @size-change="(s: number) => changeSize(s)"
         />
       </div>
     </el-card>
@@ -86,19 +86,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-dayjs.extend(utc)
-dayjs.extend(timezone)
-
-import BookingList from '@/components/BookingList.vue'
 import type { Booking } from '@/types/booking'
+import BookingList from '@/components/BookingList.vue'
 import { cancelBooking, getBooking, getMyBookings, getTodayBookings, searchBookings } from '@/api/booking'
 import { useBookingStore } from '@/stores/booking'
-import { formatRange } from '@/utils/datetime'
+import { businessDayEndMs, businessDayStartMs, formatRange } from '@/utils/datetime'
 
 type TabKey = 'all' | 'today' | 'pending'
 
@@ -128,7 +122,9 @@ const searchDateRange = ref<[string, string] | null>(null)
 const searchStatus = ref<string>('')
 const searchMode = ref(false)
 
-const viewBookings = computed(() => {
+const viewBookings = computed<Booking[]>(() => {
+  if (active.value === 'today') return todayBookings.value
+  if (active.value === 'pending') return pendingAll.value
   return allBookings.value
 })
 
@@ -137,7 +133,7 @@ const showPagination = computed(() => searchMode.value || active.value !== 'toda
 async function loadAll() {
   loading.value = true
   try {
-    const p = await getMyBookings({ bookerId: store.userId, page: page.value, size: size.value })
+    const p = await getMyBookings({ bookerId: store.userId, page: page.value, size: size.value }) as { content: Booking[]; totalElements: number }
     allBookings.value = p.content || []
     total.value = p.totalElements ?? allBookings.value.length
   } finally {
@@ -153,11 +149,11 @@ async function loadSearch() {
       bookerId: store.userId,
       keyword: searchKeyword.value || undefined,
       status: searchStatus.value || undefined,
-      startTimeFrom: from ? dayjs.tz(`${from} 00:00:00`, 'Asia/Shanghai').valueOf() : undefined,
-      startTimeTo: to ? dayjs.tz(`${to} 23:59:59`, 'Asia/Shanghai').valueOf() : undefined,
+      startTimeFrom: from ? businessDayStartMs(from) : undefined,
+      startTimeTo: to ? businessDayEndMs(to) : undefined,
       page: page.value,
       size: size.value,
-    })
+    }) as { content: Booking[]; totalElements: number }
     allBookings.value = p.content || []
     total.value = p.totalElements ?? allBookings.value.length
   } finally {
@@ -183,7 +179,7 @@ async function resetSearch() {
 async function loadToday() {
   loading.value = true
   try {
-    todayBookings.value = await getTodayBookings(store.userId)
+    todayBookings.value = await getTodayBookings(store.userId) as Booking[]
   } finally {
     loading.value = false
   }
@@ -193,7 +189,7 @@ async function loadPending() {
   loading.value = true
   try {
     // backend has no "pending only" endpoint, so fetch a larger page and filter
-    const p = await getMyBookings({ bookerId: store.userId, page: 0, size: 200 })
+    const p = await getMyBookings({ bookerId: store.userId, page: 0, size: 200 }) as { content: Booking[]; totalElements: number }
     pendingAll.value = (p.content || []).filter((b: Booking) => b.approvalStatus === 'PENDING')
     total.value = pendingAll.value.length
   } finally {

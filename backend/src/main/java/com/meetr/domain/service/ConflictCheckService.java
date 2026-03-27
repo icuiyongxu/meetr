@@ -7,67 +7,54 @@ import com.meetr.domain.vo.TimeSlot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ConflictCheckService {
 
-    /** 北京时区 */
-    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
-    /** UTC */
-    private static final ZoneOffset UTC = ZoneOffset.UTC;
-
     private final BookingMapper bookingMapper;
 
     /**
-     * 检查时间冲突，参数和返回值统一用 LocalDateTime（北京时间），
-     * 内部转为 UTC 毫秒与数据库比较。
+     * 检查时间冲突。TimeSlot 中的 LocalDateTime 语义统一为 UTC 时间点，
+     * 内部直接转为 epoch milli 与数据库中的 UTC 毫秒比较。
      */
     public ConflictResult hasConflict(Long roomId, TimeSlot slot, Long excludeBookingId) {
-        // 把 LocalDateTime 当作北京时间，转为 UTC 毫秒
-        long newStartMs = toUtcMillis(slot.start());
-        long newEndMs = toUtcMillis(slot.end());
+        long newStartMs = toEpochMillis(slot.start());
+        long newEndMs = toEpochMillis(slot.end());
         List<Booking> conflicts = bookingMapper.findConflicting(roomId, newStartMs, newEndMs, excludeBookingId);
         return new ConflictResult(!conflicts.isEmpty(), conflicts);
     }
 
     /**
-     * 把输入的 LocalDateTime（前端传来的北京时间字符串解析结果）
-     * 对齐到 resolution 边界，返回的 TimeSlot 仍是北京时间 LocalDateTime。
+     * 把输入的 UTC 时间点按 resolution 对齐，
+     * 返回值仍使用 UTC 语义的 LocalDateTime，便于后续统一入库。
      */
     public TimeSlot alignToSlot(TimeSlot raw, RoomConfig config) {
-        long resolutionSeconds = config.getResolution().longValue();
+        long resolutionMillis = config.getResolution().longValue() * 1000;
 
-        // 把输入的 LocalDateTime 当作北京时间，转 UTC 毫秒
-        long startMs = toUtcMillis(raw.start());
-        long endMs = toUtcMillis(raw.end());
+        long startMs = toEpochMillis(raw.start());
+        long endMs = toEpochMillis(raw.end());
 
-        // 向上取整对齐
-        long alignedStartMs = (startMs / resolutionSeconds) * resolutionSeconds;
-        long alignedEndMs = ((endMs + resolutionSeconds - 1) / resolutionSeconds) * resolutionSeconds;
+        // 开始时间向下取整，结束时间向上取整
+        long alignedStartMs = (startMs / resolutionMillis) * resolutionMillis;
+        long alignedEndMs = ((endMs + resolutionMillis - 1) / resolutionMillis) * resolutionMillis;
 
-        // 转回北京时间 LocalDateTime
-        LocalDateTime alignedStart = fromUtcMillis(alignedStartMs);
-        LocalDateTime alignedEnd = fromUtcMillis(alignedEndMs);
+        LocalDateTime alignedStart = fromEpochMillis(alignedStartMs);
+        LocalDateTime alignedEnd = fromEpochMillis(alignedEndMs);
 
         return new TimeSlot(alignedStart, alignedEnd);
     }
 
-    // ── 转换工具 ───────────────────────────────────────
-
-    /** LocalDateTime（北京时间） → UTC 毫秒 */
-    private long toUtcMillis(LocalDateTime dt) {
-        return dt.atZone(BEIJING).toInstant().toEpochMilli();
+    private long toEpochMillis(LocalDateTime dt) {
+        return dt.toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
-    /** UTC 毫秒 → LocalDateTime（北京时间） */
-    private LocalDateTime fromUtcMillis(long ms) {
-        return LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(ms), BEIJING);
+    private LocalDateTime fromEpochMillis(long ms) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(ms), ZoneOffset.UTC);
     }
 
     public record ConflictResult(boolean conflict, List<Booking> conflictingBookings) {

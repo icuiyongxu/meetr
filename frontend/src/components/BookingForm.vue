@@ -104,7 +104,7 @@ const initial = computed(() => {
     attendeeIds: [] as string[],
     remark: '',
   }
-}
+})
 
 const form = reactive({
   subject: '',

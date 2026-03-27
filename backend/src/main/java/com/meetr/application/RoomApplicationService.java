@@ -6,15 +6,13 @@ import com.meetr.application.dto.RoomUpsertRequest;
 import com.meetr.domain.entity.Building;
 import com.meetr.domain.entity.MeetingRoom;
 import com.meetr.domain.enums.BuildingStatus;
+import com.meetr.exception.BusinessException;
 import com.meetr.mapper.BuildingMapper;
 import com.meetr.mapper.MeetingRoomMapper;
-import com.meetr.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,8 +21,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RoomApplicationService {
 
-    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
-
     private final MeetingRoomMapper meetingRoomMapper;
     private final BuildingMapper buildingMapper;
 
@@ -32,14 +28,11 @@ public class RoomApplicationService {
         return enrich(meetingRoomMapper.search(buildingId, normalize(floor), capacity, status, normalize(keyword)));
     }
 
-    public List<RoomDTO> available(LocalDateTime startTime, LocalDateTime endTime, Long buildingId, Integer capacity) {
-        if (startTime == null || endTime == null || !startTime.isBefore(endTime)) {
+    public List<RoomDTO> available(Long startTimeMs, Long endTimeMs, Long buildingId, Integer capacity) {
+        if (startTimeMs == null || endTimeMs == null || startTimeMs >= endTimeMs) {
             throw new BusinessException(40002, "开始时间必须早于结束时间");
         }
-        // Convert LocalDateTime (Beijing) to UTC millis
-        long startMs = startTime.atZone(BEIJING).toInstant().toEpochMilli();
-        long endMs = endTime.atZone(BEIJING).toInstant().toEpochMilli();
-        return enrich(meetingRoomMapper.findAvailable(startMs, endMs, buildingId, capacity)).stream()
+        return enrich(meetingRoomMapper.findAvailable(startTimeMs, endTimeMs, buildingId, capacity)).stream()
             .filter(room -> {
                 Building building = buildingMapper.findById(room.getBuildingId());
                 return building != null && building.getStatus() == BuildingStatus.ACTIVE;

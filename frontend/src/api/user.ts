@@ -9,29 +9,35 @@ export interface UserItem {
 }
 
 export async function getUsers(): Promise<UserItem[]> {
-  return unwrap(http.get<UserItem[]>('/users'))
+  return unwrap(http.get<ApiResponseLike<UserItem[]>>('/users') as any)
 }
 
 export async function getUser(userId: string): Promise<UserItem> {
-  return unwrap(http.get<UserItem>(`/users/${userId}`))
+  return unwrap(http.get<ApiResponseLike<UserItem>>(`/users/${userId}`) as any)
 }
 
 export async function createUser(data: { userId: string; name: string; password: string }) {
-  return unwrap(http.post<UserItem>('/admin/users', data))
+  return unwrap(http.post<ApiResponseLike<UserItem>>('/admin/users', data) as any)
 }
 
 export async function updateUser(id: number, data: { name?: string; password?: string; status?: string }) {
-  return unwrap(http.put<UserItem>(`/admin/users/${id}`, data))
+  return unwrap(http.put<ApiResponseLike<UserItem>>(`/admin/users/${id}`, data) as any)
 }
 
 export async function setUserStatus(id: number, status: string) {
-  return unwrap(http.put<UserItem>(`/admin/users/${id}/status`, { status }))
+  return unwrap(http.put<ApiResponseLike<UserItem>>(`/admin/users/${id}/status`, { status }) as any)
 }
 
 export async function deleteUser(id: number) {
-  return unwrap(http.delete(`/admin/users/${id}`))
+  return unwrap(http.delete<ApiResponseLike<unknown>>(`/admin/users/${id}`) as any)
 }
 
 export async function assignRoles(id: number, roleCodes: string[]) {
-  return unwrap(http.put(`/admin/users/${id}/roles`, { roleCodes }))
+  return unwrap(http.put<ApiResponseLike<unknown>>(`/admin/users/${id}/roles`, { roleCodes }) as any)
+}
+
+type ApiResponseLike<T> = {
+  code: number
+  message: string
+  data: T
 }

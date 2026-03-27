@@ -10,10 +10,8 @@ import com.meetr.config.RequirePermission;
 import com.meetr.domain.enums.RoomStatus;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -40,16 +38,16 @@ public class RoomController {
             @RequestParam Long roomId,
             @RequestParam Long dayMillis) {
         Long dayStartMs = dayMillis;
-        Long dayEndMs = dayMillis + 86_400_000L; // +24h
+        Long dayEndMs = dayMillis + 86_400_000L;
         return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, dayStartMs, dayEndMs));
     }
 
     @GetMapping("/api/rooms/available")
-    public ApiResponse<List<RoomDTO>> available(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
-                                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+    public ApiResponse<List<RoomDTO>> available(@RequestParam Long startTimeMs,
+                                                @RequestParam Long endTimeMs,
                                                 @RequestParam(required = false) Long buildingId,
                                                 @RequestParam(required = false) Integer capacity) {
-        return ApiResponse.ok(roomApplicationService.available(startTime, endTime, buildingId, capacity));
+        return ApiResponse.ok(roomApplicationService.available(startTimeMs, endTimeMs, buildingId, capacity));
     }
 
     @GetMapping("/api/rooms/{id}")

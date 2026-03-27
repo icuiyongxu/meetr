@@ -45,7 +45,7 @@
             <el-switch
               :model-value="row.status === 'ENABLED'"
               :loading="row._updating"
-              @change="(v) => toggleStatus(row, v)"
+              @change="(v: boolean | string | number) => toggleStatus(row, v)"
             />
           </template>
         </el-table-column>
@@ -170,7 +170,7 @@ const enabledSwitch = computed({
 const rules: FormRules = {
   buildingId: [{ required: true, message: '请选择楼栋', trigger: 'change' }],
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  capacity: [{ required: true, message: '请输入容量', trigger: 'change', validator: (rule, val, cb) => cb(val >= 1 ? undefined : new Error('容量不能小于1')) }],
+  capacity: [{ required: true, message: '请输入容量', trigger: 'change', validator: (_rule, val, cb) => cb(val >= 1 ? undefined : new Error('容量不能小于1')) }],
 }
 
 function openCreate() {

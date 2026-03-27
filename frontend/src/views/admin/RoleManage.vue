@@ -115,11 +115,11 @@ watch(selectedRoleId, async (newId) => {
 })
 
 async function loadRoles() {
-  roles.value = await unwrap(http.get<SysRole[]>('/admin/roles'))
+  roles.value = await unwrap<SysRole[]>(http.get('/admin/roles') as any)
 }
 
 async function loadPermissions() {
-  allPermissions.value = await unwrap(http.get<SysPermission[]>('/admin/roles/permissions'))
+  allPermissions.value = await unwrap<SysPermission[]>(http.get('/admin/roles/permissions') as any)
 }
 
 async function savePermissions() {

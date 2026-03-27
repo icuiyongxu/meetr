@@ -3,6 +3,7 @@ package com.meetr.application;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.meetr.application.dto.*;
+import com.meetr.common.BusinessTime;
 import com.meetr.domain.entity.*;
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
@@ -15,23 +16,22 @@ import com.meetr.domain.service.RecurrenceExpander;
 import com.meetr.domain.vo.RuleViolation;
 import com.meetr.domain.vo.TimeSlot;
 import com.meetr.exception.BusinessException;
-import com.meetr.mapper.*;
+import com.meetr.mapper.BookingAttendeeMapper;
+import com.meetr.mapper.BookingMapper;
+import com.meetr.mapper.BookingOperationLogMapper;
+import com.meetr.mapper.BuildingMapper;
+import com.meetr.mapper.MeetingRoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class BookingApplicationService {
-
-    private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
 
     private final BookingMapper bookingMapper;
     private final BookingAttendeeMapper bookingAttendeeMapper;
@@ -48,8 +48,8 @@ public class BookingApplicationService {
         MeetingRoom room = requireAvailableRoom(cmd.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
 
-        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(cmd.getStartTime() / 1000, 0, ZoneOffset.UTC);
-        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(cmd.getEndTime() / 1000, 0, ZoneOffset.UTC);
+        LocalDateTime startUtc = BusinessTime.msToUtcLocalDateTime(cmd.getStartTime());
+        LocalDateTime endUtc = BusinessTime.msToUtcLocalDateTime(cmd.getEndTime());
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
         Booking master = buildBooking(cmd, room, alignedSlot, config, null, 1);
@@ -65,27 +65,28 @@ public class BookingApplicationService {
         }
 
         persistBooking(master);
-
         syncAttendees(master.getId(), cmd.getAttendeeIds());
         saveLog(master.getId(), "CREATE", cmd.getBookerId(), master.getBookerName(), "创建预约");
 
         RecurrenceType recType = cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE;
         if (recType != RecurrenceType.NONE && cmd.getRecurrenceEndDate() != null) {
-            List<long[]> instances = recurrenceExpander.expand(
-                alignedSlot.start(), alignedSlot.end(), recType, cmd.getRecurrenceEndDate());
+            List<long[]> instances = recurrenceExpander.expand(alignedSlot.start(), alignedSlot.end(), recType, cmd.getRecurrenceEndDate());
             for (int i = 0; i < instances.size(); i++) {
                 long[] inst = instances.get(i);
-                LocalDateTime s = LocalDateTime.ofEpochSecond(inst[0] / 1000, 0, ZoneOffset.UTC);
-                LocalDateTime e = LocalDateTime.ofEpochSecond(inst[1] / 1000, 0, ZoneOffset.UTC);
+                LocalDateTime s = BusinessTime.msToUtcLocalDateTime(inst[0]);
+                LocalDateTime e = BusinessTime.msToUtcLocalDateTime(inst[1]);
                 TimeSlot instSlot = conflictCheckService.alignToSlot(new TimeSlot(s, e), config);
 
                 Booking child = buildBooking(cmd, room, instSlot, config, master.getId(), i + 2);
                 List<RuleViolation> childViolations = bookingRuleService.validate(child, room, config);
-                if (!childViolations.isEmpty()) continue;
+                if (!childViolations.isEmpty()) {
+                    continue;
+                }
 
-                ConflictCheckService.ConflictResult childConflict =
-                    conflictCheckService.hasConflict(room.getId(), instSlot, null);
-                if (childConflict.conflict()) continue;
+                ConflictCheckService.ConflictResult childConflict = conflictCheckService.hasConflict(room.getId(), instSlot, null);
+                if (childConflict.conflict()) {
+                    continue;
+                }
 
                 persistBooking(child);
                 syncAttendees(child.getId(), cmd.getAttendeeIds());
@@ -120,13 +121,14 @@ public class BookingApplicationService {
         Booking booking = requireBooking(cmd.getBookingId());
         assertOperator(booking, cmd.getOperatorId());
         if (booking.getStatus() == BookingStatus.CANCELED) {
-            throw new BusinessException(40002, "已取消的预约不能修改");
+            throw new BusinessException(40002, "已取消预约不可修改");
         }
 
         MeetingRoom room = requireAvailableRoom(booking.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
-        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(cmd.getStartTime() / 1000, 0, ZoneOffset.UTC);
-        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(cmd.getEndTime() / 1000, 0, ZoneOffset.UTC);
+
+        LocalDateTime startUtc = BusinessTime.msToUtcLocalDateTime(cmd.getStartTime());
+        LocalDateTime endUtc = BusinessTime.msToUtcLocalDateTime(cmd.getEndTime());
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
         booking.updateDetails(cmd.getSubject(), alignedSlot, cmd.getAttendeeCount(), cmd.getRemark());
@@ -151,33 +153,38 @@ public class BookingApplicationService {
     public void cancel(Long bookingId, String operatorId, boolean cancelSeries) {
         Booking booking = requireBooking(bookingId);
         assertOperator(booking, operatorId);
-        try {
+        if (!cancelSeries) {
             booking.cancel();
-        } catch (IllegalStateException ex) {
-            throw new BusinessException(40002, "预约已取消");
+            updateBooking(booking);
+            saveLog(booking.getId(), "CANCEL", operatorId, operatorId, "取消预约");
+            return;
         }
+
+        booking.cancel();
         updateBooking(booking);
         saveLog(booking.getId(), "CANCEL", operatorId, operatorId,
-            cancelSeries ? "取消全系列预约" : "取消预约");
+            booking.getRecurrenceType() != null && booking.getRecurrenceType() != RecurrenceType.NONE ? "取消系列预约" : "取消预约");
 
-        if (cancelSeries) {
+        if (booking.getRecurrenceType() != null && booking.getRecurrenceType() != RecurrenceType.NONE) {
             if (booking.getParentId() != null) {
                 List<Booking> siblings = bookingMapper.findByParentIdOrderBySeriesIndexAsc(booking.getParentId());
                 for (Booking sibling : siblings) {
-                    if (sibling.getStatus() != BookingStatus.CANCELED) {
-                        sibling.cancel();
-                        updateBooking(sibling);
-                        saveLog(sibling.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
+                    if (sibling.getId().equals(booking.getId()) || sibling.getStatus() == BookingStatus.CANCELED) {
+                        continue;
                     }
+                    sibling.cancel();
+                    updateBooking(sibling);
+                    saveLog(sibling.getId(), "CANCEL", operatorId, operatorId, "取消系列预约");
                 }
             } else {
                 List<Booking> children = bookingMapper.findByParentIdOrderBySeriesIndexAsc(booking.getId());
                 for (Booking child : children) {
-                    if (child.getStatus() != BookingStatus.CANCELED) {
-                        child.cancel();
-                        updateBooking(child);
-                        saveLog(child.getId(), "CANCEL", operatorId, operatorId, "取消系列子预约");
+                    if (child.getStatus() == BookingStatus.CANCELED) {
+                        continue;
                     }
+                    child.cancel();
+                    updateBooking(child);
+                    saveLog(child.getId(), "CANCEL", operatorId, operatorId, "取消系列预约");
                 }
             }
         }
@@ -192,26 +199,26 @@ public class BookingApplicationService {
         List<Booking> bookings = bookingMapper.findByBookerIdOrderByStartTimeMsDesc(bookerId);
         PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
         List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
-        return new PageResult<>(dtos, pageInfo.getTotal(), page, size);
+        return new PageResult<>(dtos, pageInfo.getTotal());
     }
 
     public List<BookingDTO> getTodayBookings(String bookerId) {
-        LocalDate today = LocalDate.now(BEIJING);
-        long dayStartMs = today.atStartOfDay(BEIJING).toInstant().toEpochMilli();
-        long dayEndMs = today.plusDays(1).atStartOfDay(BEIJING).toInstant().toEpochMilli();
+        LocalDate today = LocalDate.now(BusinessTime.BUSINESS_ZONE);
+        long dayStartMs = BusinessTime.dayStartMs(today);
+        long dayEndMs = BusinessTime.dayEndMs(today);
         return bookingMapper.findTodayBookings(bookerId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
             .toList();
     }
 
-    public PageResult<BookingDTO> searchBookings(BookingSearchRequest req) {
-        PageHelper.startPage(req.getPage() + 1, req.getSize());
+    public PageResult<BookingDTO> searchBookings(BookingSearchRequest request) {
+        PageHelper.startPage(request.getPage() + 1, request.getSize());
         List<Booking> bookings = bookingMapper.searchBookings(
-            req.getBookerId(), req.getKeyword(), req.getRoomId(),
-            req.getStatus(), req.getStartTimeFrom(), req.getStartTimeTo());
+            request.getBookerId(), request.getKeyword(), request.getRoomId(), request.getStatus(),
+            request.getStartTimeFrom(), request.getStartTimeTo());
         PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
         List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
-        return new PageResult<>(dtos, pageInfo.getTotal(), req.getPage(), req.getSize());
+        return new PageResult<>(dtos, pageInfo.getTotal());
     }
 
     public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, Long dayStartMs, Long dayEndMs) {
@@ -223,15 +230,15 @@ public class BookingApplicationService {
     public ConflictCheckResponse checkConflict(ConflictCheckRequest request) {
         MeetingRoom room = requireAvailableRoom(request.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
-        LocalDateTime startUtc = LocalDateTime.ofEpochSecond(request.getStartTime() / 1000, 0, ZoneOffset.UTC);
-        LocalDateTime endUtc = LocalDateTime.ofEpochSecond(request.getEndTime() / 1000, 0, ZoneOffset.UTC);
+        LocalDateTime startUtc = BusinessTime.msToUtcLocalDateTime(request.getStartTime());
+        LocalDateTime endUtc = BusinessTime.msToUtcLocalDateTime(request.getEndTime());
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
         ConflictCheckService.ConflictResult result = conflictCheckService.hasConflict(room.getId(), alignedSlot, request.getExcludeBookingId());
 
         ConflictCheckResponse response = new ConflictCheckResponse();
         response.setConflict(result.conflict());
-        response.setAlignedStartTime(alignedSlot.start().toInstant(ZoneOffset.UTC).toEpochMilli());
-        response.setAlignedEndTime(alignedSlot.end().toInstant(ZoneOffset.UTC).toEpochMilli());
+        response.setAlignedStartTime(BusinessTime.utcLocalDateTimeToMs(alignedSlot.start()));
+        response.setAlignedEndTime(BusinessTime.utcLocalDateTimeToMs(alignedSlot.end()));
         response.setConflictingBookings(toConflictDtos(result.conflictingBookings()));
         return response;
     }
@@ -348,6 +355,6 @@ public class BookingApplicationService {
         return dto;
     }
 
-    /** 通用分页结果 */
-    public record PageResult<T>(List<T> content, long total, int page, int size) {}
+    public record PageResult<T>(List<T> content, long totalElements) {
+    }
 }

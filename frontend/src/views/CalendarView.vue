@@ -21,7 +21,7 @@
         <el-select v-model="selectedBuildingId" filterable clearable placeholder="全部楼栋" size="default" @change="loadData">
           <el-option v-for="b in buildings" :key="b.id" :label="b.name" :value="b.id" />
         </el-select>
-        <el-button type="primary" @click="showBookingDialog(null)">+ 新建预约</el-button>
+        <el-button type="primary" @click="showBookingDialog(undefined)">+ 新建预约</el-button>
       </div>
     </div>
 
@@ -110,7 +110,7 @@
         <div v-if="seriesBookings.length > 1" class="series-list">
           <div class="series-list-title">系列全部场次（共 {{ seriesBookings.length }} 场）</div>
           <el-table :data="seriesBookings" size="small" border>
-            <el-table-column label="时间" prop="startTime" :formatter="(row) => formatRange(row.startTime, row.endTime)" />
+            <el-table-column label="时间" prop="startTime" :formatter="(row: Booking) => formatRange(row.startTime, row.endTime)" />
             <el-table-column label="状态" prop="status" />
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
@@ -228,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import dayjs from 'dayjs'
@@ -239,7 +239,7 @@ dayjs.extend(timezone)
 
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
-import { getBookingsByRoomAndDate } from '@/api/booking'
+import { getBookingsByRoomAndDate, getMyBookings } from '@/api/booking'
 import { createBooking, cancelBooking, checkConflict } from '@/api/booking'
 import { getBookingRules } from '@/api/config'
 import { useBookingStore } from '@/stores/booking'
@@ -248,6 +248,7 @@ import type { Room } from '@/types/room'
 import type { RoomConfig } from '@/types/room'
 import type { Booking, BookingConflictDTO } from '@/types/booking'
 import ConflictAlert from '@/components/ConflictAlert.vue'
+import { formatBusinessTime, formatRange, msToBusinessValueFormat } from '@/utils/datetime'
 
 // ── 日期状态 ────────────────────────────────────────────
 const selectedDate = ref(dayjs().format('YYYY-MM-DD'))
@@ -293,12 +294,8 @@ const gridStyle = computed(() => ({
 }))
 
 // ── 工具 ───────────────────────────────────────────────
-function formatTime(dt: string) {
-  return dayjs.tz(dt, 'Asia/Shanghai').format('HH:mm')
-}
-
-function formatRange(start: string | number, end: string | number) {
-  return `${dayjs.tz(start, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm')} - ${dayjs.tz(end, 'Asia/Shanghai').format('HH:mm')}`
+function formatTime(dt: string | number) {
+  return formatBusinessTime(dt)
 }
 
 function statusTagType(s: Booking['status']) {
@@ -370,24 +367,10 @@ function getBookingBlockStyle(booking: Booking | null | undefined, _roomId: numb
   }
 }
 
-function onCellClick(room: Room, slot: { time: string; label: string }) {
-  // 点在已有预约格子上 — 在 onBookingClick 处理
-  const existing = getBookingAt(room.id, slot.time)
-  if (existing) {
-    onBookingClick(existing)
-    return
-  }
-
-  // 免费的格子 — 弹出创建对话框，预填时间和房间
-  // 用 UTC 毫秒直接比较：北京时间 slot → Asia/Shanghai 时区 → UTC ms
-  const nowMs = dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
-  const slotMs = dayjs.tz(slot.time, 'Asia/Shanghai').valueOf()
-  if (slotMs < nowMs) {
-    ElMessage.warning('不能预约过去的时间段')
-    return
-  }
-  showBookingDialog(null, room.id, slot.time)
-}
+// 预留：后续如恢复单击创建，可复用该函数
+// function onCellClick(_room: Room, _slot: { time: string; label: string }) {
+//   return
+// }
 
 async function onBookingClick(booking: Booking) {
   selectedBooking.value = booking
@@ -404,7 +387,7 @@ async function loadSeriesBookings(b: Booking) {
   // 系列 ID = parentId（非空时）或自身 ID
   const seriesId = b.parentId ?? b.id
   try {
-    const all = await getMyBookings({ bookerId: store.userId, page: 0, size: 500 })
+    const all = await getMyBookings({ bookerId: store.userId, page: 0, size: 500 }) as { content: Booking[] }
     seriesBookings.value = (all.content ?? []).filter(
       (item: Booking) => (item.parentId === seriesId) || (item.id === seriesId && item.seriesIndex === 1),
     ).sort((a: Booking, b: Booking) => a.startTime - b.startTime)
@@ -456,7 +439,7 @@ function onDocumentMouseup() {
     const s2 = dayjs.tz(currentSlot.time, 'Asia/Shanghai').valueOf()
     const startMs = Math.min(s1, s2)
     const endMs = Math.max(s1, s2) + SLOT_MINUTES.value * 60 * 1000
-    showBookingDialog(null, roomId, dayjs(startMs).format('YYYY-MM-DDTHH:mm:ss'), dayjs(endMs).format('YYYY-MM-DDTHH:mm:ss'))
+    showBookingDialog(undefined, roomId, msToBusinessValueFormat(startMs), msToBusinessValueFormat(endMs))
   }
   dragState.value = { active: false, roomId: null, startSlot: null, currentSlot: null }
 }
