@@ -708,6 +708,15 @@ onMounted(() => {
   display: grid;
   /* gridTemplateColumns 由 :style 动态设置: 80px + repeat(N, 1fr) */
   min-width: 600px;
+  /* repeating-linear-gradient 每 72px = 2×36px 循环：白→灰→白→灰
+     36px = 一个时间格高度，保证行条纹与格子边界对齐 */
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--slot-even) 0px,
+    var(--slot-even) 36px,
+    var(--slot-odd)  36px,
+    var(--slot-odd)  72px
+  );
 }
 
 .corner {
@@ -768,8 +777,7 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-/* ── 格子：MRBS 灰白交替背景 ─────────────────────────── */
-/* nth-child(2n) 对应横向第2格开始（corner 占第1格），偶数格白，基数格浅灰 */
+/* ── 格子：透明背景，透出 grid 渐变形成行条纹 ─────────── */
 .cell {
   height: 36px;
   border-right: 1px solid var(--slot-border);
@@ -777,20 +785,15 @@ onMounted(() => {
   position: relative;
   cursor: pointer;
   transition: background 0.1s;
+  background: transparent; /* 透出 grid 渐变背景 */
 }
 
 .cell:last-child {
   border-right: none;
 }
 
-/* 每个房间列各自独立交替：同列同色，形成竖向斑马条纹 */
-.cell:nth-child(4n + 2) { background: var(--slot-even); } /* 偶数行偶数列 = 白 */
-.cell:nth-child(4n + 3) { background: var(--slot-odd);  } /* 奇数行偶数列 = 浅灰 */
-.cell:nth-child(4n + 4) { background: var(--slot-even); } /* 偶数行奇数列 = 白 */
-.cell:nth-child(4n + 5) { background: var(--slot-odd);  } /* 奇数行奇数列 = 浅灰 */
-
 .cell:hover:not(.booked) {
-  background: var(--drag-bg);
+  background: rgba(59, 130, 246, 0.10);
 }
 
 .cell.past {
