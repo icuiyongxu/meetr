@@ -11,6 +11,9 @@ public interface SysUserMapper {
     @Select("select id, user_id, name, password, status, created_at_ms, updated_at_ms from sys_user where user_id = #{userId} limit 1")
     SysUser findByUserId(@Param("userId") String userId);
 
+    @Select("select id, user_id, name, password, status, created_at_ms, updated_at_ms, email, email_enabled from sys_user where user_id = #{userId} limit 1")
+    SysUser findByUserIdWithEmail(@Param("userId") String userId);
+
     @Select("select count(1) > 0 from sys_user where user_id = #{userId}")
     boolean existsByUserId(@Param("userId") String userId);
 
@@ -24,7 +27,7 @@ public interface SysUserMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(SysUser user);
 
-    @Update("update sys_user set name = #{name}, password = #{password}, status = #{status}, updated_at_ms = #{updatedAtMs} where id = #{id}")
+    @Update("update sys_user set name=#{name}, password=#{password}, status=#{status}, updated_at_ms=#{updatedAtMs}, email=#{email}, email_enabled=#{emailEnabled} where id=#{id}")
     int update(SysUser user);
 
     @Delete("delete from sys_user where id = #{id}")

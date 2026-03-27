@@ -50,6 +50,16 @@ public class AuthController {
         return ApiResponse.ok(authService.getUserDetail(userId));
     }
 
+    /**
+     * 更新个人资料（昵称、密码、邮箱、邮件通知开关）。
+     */
+    @PutMapping("/profile")
+    public ApiResponse<Void> updateProfile(@RequestBody UpdateProfileRequest req) {
+        authService.updateProfile(req.userId(), req.name(), req.password(), req.email(), req.emailEnabled());
+        return ApiResponse.ok(null);
+    }
+
     public record LoginRequest(String userId, String password) {}
     public record RegisterRequest(String userId, String name, String password) {}
+    public record UpdateProfileRequest(String userId, String name, String password, String email, Boolean emailEnabled) {}
 }

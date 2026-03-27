@@ -51,8 +51,8 @@
 
       <el-table :data="allSeriesBookings" stripe size="small">
         <el-table-column label="#" width="50" prop="seriesIndex" />
-        <el-table-column label="日期" prop="startTime" :formatter="(r) => formatDate(r.startTime)" />
-        <el-table-column label="时间" :formatter="(r) => formatTimeRange(r.startTime, r.endTime)" />
+        <el-table-column label="日期" prop="startTime" :formatter="(r: any) => formatDate(r.startTime)" />
+        <el-table-column label="时间" :formatter="(r: any) => formatTimeRange(r.startTime, r.endTime)" />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
@@ -65,7 +65,7 @@
               link
               type="danger"
               size="small"
-              :loading="skiptingId === row.id"
+              :loading="skippingId === row.id"
               @click="onSkipOne(row)"
             >
               跳过本次

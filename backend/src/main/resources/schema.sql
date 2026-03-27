@@ -228,3 +228,45 @@ INSERT IGNORE INTO sys_equipment (id, code, name, status) VALUES
 (5, 'tv',           '电视',      'ACTIVE'),
 (6, 'air_conditioner','空调',     'ACTIVE'),
 (7, 'wifi',         'Wi-Fi',     'ACTIVE');
+
+-- =============================================
+-- 通知系统相关表
+-- =============================================
+
+-- 13. notification（站内通知）
+CREATE TABLE IF NOT EXISTS notification (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id         VARCHAR(64)  NOT NULL COMMENT '通知目标用户ID',
+    event_type      VARCHAR(32)  NOT NULL COMMENT 'BOOKING_CREATED / CANCELED / UPDATED 等',
+    title           VARCHAR(256) NOT NULL COMMENT '通知标题',
+    content         TEXT         NOT NULL COMMENT '通知正文',
+    booking_id      BIGINT       NULL COMMENT '关联预约ID',
+    room_id         BIGINT       NULL COMMENT '关联会议室ID',
+    booking_start_time_ms BIGINT   NULL COMMENT '会议开始时间（ms），用于过滤已过期通知',
+    booking_end_time_ms   BIGINT   NULL COMMENT '会议结束时间（ms）',
+    is_read         TINYINT(1)  NOT NULL DEFAULT 0 COMMENT '0=未读，1=已读',
+    read_at         BIGINT       NULL COMMENT '已读时间戳（ms）',
+    created_at_ms  BIGINT       NOT NULL COMMENT '创建时间戳（ms）',
+    INDEX idx_user_created (user_id, created_at_ms DESC),
+    INDEX idx_user_read (user_id, is_read)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS booking_start_time_ms BIGINT NULL COMMENT '会议开始时间（ms）' AFTER room_id;
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS booking_end_time_ms BIGINT NULL COMMENT '会议结束时间（ms）' AFTER booking_start_time_ms;
+
+-- 14. notification_event_log（通知发送日志，防止重复发送）
+CREATE TABLE IF NOT EXISTS notification_event_log (
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
+    event_type      VARCHAR(32)  NOT NULL COMMENT '事件类型',
+    booking_id      BIGINT       NOT NULL COMMENT '关联预约ID',
+    target_user_id  VARCHAR(64)  NOT NULL COMMENT '通知目标用户ID',
+    channel         VARCHAR(16)  NOT NULL COMMENT 'IN_APP / EMAIL',
+    status          VARCHAR(16)  NOT NULL COMMENT 'SENT / FAILED',
+    error_msg       VARCHAR(500) NULL,
+    created_at_ms   BIGINT       NOT NULL,
+    INDEX idx_booking_event (booking_id, event_type, target_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- sys_user 新增邮箱字段
+ALTER TABLE sys_user ADD COLUMN IF NOT EXISTS email VARCHAR(256) NULL COMMENT '邮箱地址' AFTER name;
+ALTER TABLE sys_user ADD COLUMN IF NOT EXISTS email_enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否开启邮件通知' AFTER email;

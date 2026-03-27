@@ -162,11 +162,34 @@ public class AuthService {
     }
 
     public UserDetail getUserDetail(String userId) {
-        SysUser user = sysUserMapper.findByUserId(userId);
+        SysUser user = sysUserMapper.findByUserIdWithEmail(userId);
         if (user == null) {
             return null;
         }
-        return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(), getUserRoles(userId));
+        return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(),
+            getUserRoles(userId), user.getEmail(), user.getEmailEnabled());
+    }
+
+    @Transactional
+    public void updateProfile(String userId, String name, String password, String email, Boolean emailEnabled) {
+        SysUser user = sysUserMapper.findByUserIdWithEmail(userId);
+        if (user == null) {
+            throw new com.meetr.exception.BusinessException(40401, "用户不存在");
+        }
+        if (name != null && !name.isBlank()) {
+            user.setName(name);
+        }
+        if (password != null && !password.isBlank()) {
+            user.setPassword(passwordEncoder.encode(password));
+        }
+        if (email != null) {
+            user.setEmail(email.isBlank() ? null : email);
+        }
+        if (emailEnabled != null) {
+            user.setEmailEnabled(emailEnabled);
+        }
+        user.touchForUpdate();
+        sysUserMapper.update(user);
     }
 
     private SysUser requireUser(Long id) {
@@ -193,6 +216,7 @@ public class AuthService {
         return false;
     }
 
-    public record UserDetail(Long id, String userId, String name, String status, List<String> roles) {
+    public record UserDetail(Long id, String userId, String name, String status, List<String> roles,
+                             String email, Boolean emailEnabled) {
     }
 }

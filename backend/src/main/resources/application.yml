@@ -11,6 +11,17 @@ spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
+  mail:
+    host: smtp.example.com
+    port: 587
+    username: noreply@example.com
+    password: your-smtp-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 mybatis:
   mapper-locations: classpath*:mapper/*.xml
@@ -31,3 +42,21 @@ server:
 
 # JVM 启动参数需要加: -Duser.timezone=Asia/Shanghai
 # 或者在运行配置里设置: -Duser.timezone=Asia/Shanghai
+
+mail:
+  host: smtp.163.com
+  username: decocalc@163.com
+  password: VYuVXh2yE32zYv9y
+  default-encoding: UTF-8
+  properties:
+    mail:
+      smtp:
+        auth: true
+        starttls:
+          enable: true
+          required: true
+
+meetr:
+  jwt:
+    secret: meetr-super-secret-key-change-in-production
+    expiration: 86400000

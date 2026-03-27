@@ -8,6 +8,7 @@ import com.meetr.domain.entity.*;
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
 import com.meetr.domain.enums.BuildingStatus;
+import com.meetr.domain.enums.NotificationEventType;
 import com.meetr.domain.enums.RecurrenceType;
 import com.meetr.domain.enums.RoomStatus;
 import com.meetr.domain.service.BookingRuleService;
@@ -22,6 +23,7 @@ import com.meetr.mapper.BookingOperationLogMapper;
 import com.meetr.mapper.BuildingMapper;
 import com.meetr.mapper.MeetingRoomMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,7 @@ public class BookingApplicationService {
     private final ConflictCheckService conflictCheckService;
     private final BookingRuleService bookingRuleService;
     private final RecurrenceExpander recurrenceExpander;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public BookingResult create(CreateBookingCommand cmd) {
@@ -67,6 +70,7 @@ public class BookingApplicationService {
         persistBooking(master);
         syncAttendees(master.getId(), cmd.getAttendeeIds());
         saveLog(master.getId(), "CREATE", cmd.getBookerId(), master.getBookerName(), "创建预约");
+        publishEvent(NotificationEventType.BOOKING_CREATED, master, cmd.getBookerId(), cmd.getAttendeeIds());
 
         RecurrenceType recType = cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE;
         if (recType != RecurrenceType.NONE && cmd.getRecurrenceEndDate() != null) {
@@ -90,6 +94,7 @@ public class BookingApplicationService {
 
                 persistBooking(child);
                 syncAttendees(child.getId(), cmd.getAttendeeIds());
+                publishEvent(NotificationEventType.BOOKING_CREATED, child, cmd.getBookerId(), cmd.getAttendeeIds());
             }
         }
 
@@ -146,6 +151,7 @@ public class BookingApplicationService {
 
         updateBooking(booking);
         saveLog(booking.getId(), "UPDATE", cmd.getOperatorId(), cmd.getOperatorId(), "修改预约");
+        publishEvent(NotificationEventType.BOOKING_UPDATED, booking, booking.getBookerId(), bookingAttendeeMapper.findByBookingIdOrderByIdAsc(booking.getId()).stream().map(BookingAttendee::getUserId).toList());
         return BookingResult.success(toDto(booking));
     }
 
@@ -157,6 +163,7 @@ public class BookingApplicationService {
             booking.cancel();
             updateBooking(booking);
             saveLog(booking.getId(), "CANCEL", operatorId, operatorId, "取消预约");
+            publishEvent(NotificationEventType.BOOKING_CANCELED, booking, booking.getBookerId(), null);
             return;
         }
 
@@ -164,6 +171,7 @@ public class BookingApplicationService {
         updateBooking(booking);
         saveLog(booking.getId(), "CANCEL", operatorId, operatorId,
             booking.getRecurrenceType() != null && booking.getRecurrenceType() != RecurrenceType.NONE ? "取消系列预约" : "取消预约");
+        publishEvent(NotificationEventType.BOOKING_CANCELED, booking, booking.getBookerId(), null);
 
         if (booking.getRecurrenceType() != null && booking.getRecurrenceType() != RecurrenceType.NONE) {
             if (booking.getParentId() != null) {
@@ -175,6 +183,7 @@ public class BookingApplicationService {
                     sibling.cancel();
                     updateBooking(sibling);
                     saveLog(sibling.getId(), "CANCEL", operatorId, operatorId, "取消系列预约");
+                    publishEvent(NotificationEventType.BOOKING_CANCELED, sibling, sibling.getBookerId(), null);
                 }
             } else {
                 List<Booking> children = bookingMapper.findByParentIdOrderBySeriesIndexAsc(booking.getId());
@@ -185,6 +194,7 @@ public class BookingApplicationService {
                     child.cancel();
                     updateBooking(child);
                     saveLog(child.getId(), "CANCEL", operatorId, operatorId, "取消系列预约");
+                    publishEvent(NotificationEventType.BOOKING_CANCELED, child, child.getBookerId(), null);
                 }
             }
         }
@@ -423,6 +433,17 @@ public class BookingApplicationService {
             "修改系列第" + req.getFromSeriesIndex() + "场及后续预约的时间");
 
         return getSeriesBookings(bookingId, operatorId);
+    }
+
+    private void publishEvent(NotificationEventType eventType, Booking booking,
+                               String bookerId, List<String> attendeeIds) {
+        List<String> targetUserIds = new java.util.ArrayList<>();
+        targetUserIds.add(bookerId);
+        if (attendeeIds != null) {
+            targetUserIds.addAll(attendeeIds);
+        }
+        eventPublisher.publishEvent(new com.meetr.domain.event.BookingDomainEvent(
+            this, eventType, booking, targetUserIds));
     }
 
     public record PageResult<T>(List<T> content, long totalElements) {

@@ -19,6 +19,8 @@ public class SysUser {
     private String status = "ACTIVE";
     private Long createdAtMs;
     private Long updatedAtMs;
+    private String email;
+    private Boolean emailEnabled = false;
 
     public void initTimestampsForInsert() {
         long now = System.currentTimeMillis();
