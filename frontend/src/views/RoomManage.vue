@@ -50,9 +50,10 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="primary" plain @click="openKiosk(row)">大屏</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -205,6 +206,10 @@ function openEdit(row: RoomRow) {
   form.remark = row.remark || ''
   form.status = row.status
   dialogVisible.value = true
+}
+
+function openKiosk(row: RoomRow) {
+  window.open(`/kiosk/room/${row.id}`, '_blank')
 }
 
 async function save() {

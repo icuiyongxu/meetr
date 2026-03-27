@@ -11,6 +11,7 @@ const routes = [
   { path: '/admin/users', component: () => import('@/views/admin/UserManage.vue') },
   { path: '/admin/roles', component: () => import('@/views/admin/RoleManage.vue') },
   { path: '/admin/equipments', component: () => import('@/views/admin/EquipmentManage.vue') },
+  { path: '/kiosk/room/:roomId', component: () => import('@/views/KioskView.vue') },
 ]
 
 export default createRouter({
