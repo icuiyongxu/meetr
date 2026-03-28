@@ -103,7 +103,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Bell, Plus, Edit, Close, Check, Clock, Timer
@@ -194,7 +194,7 @@ function goToBooking() {
   router.push(`/my-bookings?bookingId=${selectedNotification.value.bookingId}`)
 }
 
-const POLL_INTERVAL = 30_000
+const POLL_INTERVAL = 10_000
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -207,73 +207,27 @@ async function loadUnread() {
   }
 }
 
-async function loadList() {
-  if (!store.isLoggedIn) return
-  loading.value = true
-  try {
-    const page = await getNotifications(store.userId, 0, 20)
-    notifications.value = page?.list ?? []
-  } catch (e) {
-    console.error('[NotificationBell] loadList failed:', e)
-    ElMessage.error('加载通知失败')
-  } finally {
-    loading.value = false
+function startPolling() {
+  if (pollTimer) return
+  loadUnread()
+  pollTimer = setInterval(loadUnread, POLL_INTERVAL)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 }
 
-async function togglePanel() {
-  panelVisible.value = !panelVisible.value
-  if (panelVisible.value) {
-    await loadList()
-  }
-}
-
-async function onMarkRead(n: Notification) {
-  if (n.isRead) return
-  readingId.value = n.id
-  try {
-    await markAsRead(n.id)
-    n.isRead = true
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
-  } catch {
-    ElMessage.error('操作失败')
-  } finally {
-    readingId.value = null
-  }
-}
-
-async function onMarkAllRead() {
-  markingAll.value = true
-  try {
-    await markAllRead(store.userId)
-    notifications.value.forEach((n) => (n.isRead = true))
-    unreadCount.value = 0
-  } catch {
-    ElMessage.error('操作失败')
-  } finally {
-    markingAll.value = false
-  }
-}
-
-function onItemClick(n: Notification) {
-  selectedNotification.value = n
-  detailVisible.value = true
-  if (!n.isRead) {
-    onMarkRead(n)
-  }
-  panelVisible.value = false
-}
-
-onMounted(() => {
-  if (store.isLoggedIn) {
-    loadUnread()
-    pollTimer = setInterval(loadUnread, POLL_INTERVAL)
-  }
-})
-
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
-})
+watch(
+  () => store.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) startPolling()
+    else stopPolling()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

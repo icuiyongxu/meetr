@@ -17,7 +17,10 @@
           <template #title>管理</template>
           <el-menu-item index="/admin/buildings">楼栋管理</el-menu-item>
           <el-menu-item index="/admin/rooms">会议室管理</el-menu-item>
-          <el-menu-item index="/admin/pending-bookings">审批队列</el-menu-item>
+          <el-menu-item index="/admin/pending-bookings">
+            <span>审批队列</span>
+            <el-badge v-if="pendingCount > 0" :value="pendingCount" :max="99" class="pending-badge" />
+          </el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/roles">角色管理</el-menu-item>
           <el-menu-item index="/admin/equipments">设备管理</el-menu-item>
@@ -101,17 +104,36 @@ import NotificationBell from '@/components/NotificationBell.vue'
 import { ArrowDown, User, SwitchButton, Edit } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getUserProfile, updateProfile } from '@/api/user'
+import { countPendingBookings } from '@/api/booking'
 
 const route = useRoute()
 const router = useRouter()
 const store = useBookingStore()
+
+const pendingCount = ref(0)
+const refreshPendingCount = async () => {
+  if (!store.isAdmin) {
+    pendingCount.value = 0
+    return
+  }
+  try {
+    const res = await countPendingBookings()
+    pendingCount.value = res.totalElements ?? 0
+  } catch {
+    pendingCount.value = 0
+  }
+}
+
 store.ensureUser()
 onMounted(async () => {
-    await store.login()
-    if (!store.isLoggedIn) {
-      router.push('/login')
-    }
-  })
+  await store.login()
+  if (!store.isLoggedIn) {
+    router.push('/login')
+    return
+  }
+  await refreshPendingCount()
+  setInterval(refreshPendingCount, 60 * 1000)
+})
 function logout() {
   localStorage.removeItem('meetr_user_id')
   localStorage.removeItem('meetr_user_name')
@@ -262,5 +284,9 @@ html, body, #app {
   font-weight: 600;
   color: #1a1a1a;
   margin-bottom: 16px;
+}
+
+.pending-badge {
+  margin-left: 8px;
 }
 </style>

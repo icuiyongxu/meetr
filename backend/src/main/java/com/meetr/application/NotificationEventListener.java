@@ -12,9 +12,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.HashSet;
 
 /**
  * 监听预约领域事件，发送站内通知和邮件。
@@ -32,7 +32,10 @@ public class NotificationEventListener {
     public void onBookingEvent(BookingDomainEvent event) {
         try {
             Booking booking = event.getBooking();
-            List<String> targetUserIds = resolveTargetUsers(booking, event.getEventType());
+            List<String> targetUserIds = event.getTargetUserIds();
+            if (targetUserIds == null || targetUserIds.isEmpty()) {
+                targetUserIds = resolveTargetUsers(booking, event.getEventType());
+            }
 
             if (targetUserIds.isEmpty()) {
                 log.debug("没有需要通知的用户: eventType={}, bookingId={}",
@@ -50,21 +53,17 @@ public class NotificationEventListener {
 
     /**
      * 根据事件类型和预约确定需要通知的用户列表。
-     * - BOOKING_CREATED / UPDATED / CANCELED：预约人 + 参会人
-     * - BOOKING_APPROVED / REJECTED：仅预约人
-     * - BOOKING_REMINDER：预约人 + 参会人
      */
     private List<String> resolveTargetUsers(Booking booking, NotificationEventType eventType) {
         Set<String> users = new HashSet<>();
 
-        // 预约人始终收到通知
         if (booking.getBookerId() != null) {
             users.add(booking.getBookerId());
         }
 
-        // 参会人也收到通知（CREATED / UPDATED / CANCELED / REMINDER）
         if (eventType != NotificationEventType.BOOKING_APPROVED
-            && eventType != NotificationEventType.BOOKING_REJECTED) {
+            && eventType != NotificationEventType.BOOKING_REJECTED
+            && eventType != NotificationEventType.BOOKING_APPROVAL_REQUIRED) {
             List<BookingAttendee> attendees = bookingAttendeeMapper.findByBookingIdOrderByIdAsc(booking.getId());
             for (BookingAttendee a : attendees) {
                 if (a.getUserId() != null && !a.getUserId().isBlank()) {

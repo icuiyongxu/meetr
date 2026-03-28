@@ -69,6 +69,7 @@ public class NotificationService {
             case BOOKING_CREATED  -> "预约已创建";
             case BOOKING_UPDATED  -> "预约已变更";
             case BOOKING_CANCELED  -> "预约已取消";
+            case BOOKING_APPROVAL_REQUIRED -> "有新的预约待审批";
             case BOOKING_APPROVED  -> "预约已通过";
             case BOOKING_REJECTED  -> "预约已拒绝";
             case BOOKING_REMINDER  -> "会议即将开始";
@@ -91,6 +92,7 @@ public class NotificationService {
             case BOOKING_CREATED  -> base + "您的预约已创建成功。";
             case BOOKING_UPDATED  -> base + "预约信息已变更，请注意查看。";
             case BOOKING_CANCELED  -> base + "该预约已被取消。";
+            case BOOKING_APPROVAL_REQUIRED -> base + "该预约正在等待管理员审批，请及时处理。";
             case BOOKING_APPROVED  -> base + "您的预约已通过审批。";
             case BOOKING_REJECTED  -> base + "很遗憾，您的预约未通过审批。";
             case BOOKING_REMINDER  -> base + "会议即将开始，请准时参加。";

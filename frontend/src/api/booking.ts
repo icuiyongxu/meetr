@@ -77,6 +77,10 @@ export function searchBookings(params: {
   return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/bookings/search', { params }))
 }
 
+export function countPendingBookings() {
+  return unwrap<{ totalElements: number; content: Booking[] }>(http.get('/admin/bookings/pending', { params: { page: 0, size: 1 } }))
+}
+
 export function getPendingBookings(params: {
   buildingId?: number
   roomId?: number

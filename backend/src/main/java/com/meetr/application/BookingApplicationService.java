@@ -46,6 +46,7 @@ public class BookingApplicationService {
     private final ConflictCheckService conflictCheckService;
     private final BookingRuleService bookingRuleService;
     private final RecurrenceExpander recurrenceExpander;
+    private final AdminUserService adminUserService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -73,6 +74,7 @@ public class BookingApplicationService {
         syncAttendees(master.getId(), cmd.getAttendeeIds());
         saveLog(master.getId(), "CREATE", cmd.getBookerId(), master.getBookerName(), "创建预约");
         publishEvent(NotificationEventType.BOOKING_CREATED, master, cmd.getBookerId(), cmd.getAttendeeIds());
+        notifyApproversIfNeeded(master, config);
 
         RecurrenceType recType = cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE;
         if (recType != RecurrenceType.NONE && cmd.getRecurrenceEndDate() != null) {
@@ -97,6 +99,7 @@ public class BookingApplicationService {
                 persistBooking(child);
                 syncAttendees(child.getId(), cmd.getAttendeeIds());
                 publishEvent(NotificationEventType.BOOKING_CREATED, child, cmd.getBookerId(), cmd.getAttendeeIds());
+                notifyApproversIfNeeded(child, config);
             }
         }
 
@@ -500,12 +503,33 @@ public class BookingApplicationService {
     private void publishEvent(NotificationEventType eventType, Booking booking,
                                String bookerId, List<String> attendeeIds) {
         List<String> targetUserIds = new java.util.ArrayList<>();
-        targetUserIds.add(bookerId);
+        if (bookerId != null && !bookerId.isBlank()) {
+            targetUserIds.add(bookerId);
+        }
         if (attendeeIds != null) {
             targetUserIds.addAll(attendeeIds);
         }
+        targetUserIds = targetUserIds.stream()
+            .filter(userId -> userId != null && !userId.isBlank())
+            .distinct()
+            .toList();
         eventPublisher.publishEvent(new com.meetr.domain.event.BookingDomainEvent(
             this, eventType, booking, targetUserIds));
+    }
+
+    private void notifyApproversIfNeeded(Booking booking, RoomConfig config) {
+        if (!Boolean.TRUE.equals(config.getApprovalRequired())) {
+            return;
+        }
+        if (booking.getApprovalStatus() != ApprovalStatus.PENDING) {
+            return;
+        }
+        List<String> adminIds = adminUserService.listAdminUserIds();
+        if (adminIds == null || adminIds.isEmpty()) {
+            return;
+        }
+        eventPublisher.publishEvent(new com.meetr.domain.event.BookingDomainEvent(
+            this, NotificationEventType.BOOKING_APPROVAL_REQUIRED, booking, adminIds));
     }
 
     public record PageResult<T>(List<T> content, long totalElements) {
