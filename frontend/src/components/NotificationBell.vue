@@ -6,7 +6,6 @@
       </el-button>
     </el-badge>
 
-    <!-- 通知面板 -->
     <el-popover
       :visible="panelVisible"
       placement="bottom-end"
@@ -20,7 +19,6 @@
 
       <template #default>
         <div class="notif-panel">
-          <!-- 头部 -->
           <div class="notif-header">
             <span class="notif-title">通知</span>
             <el-button
@@ -35,7 +33,6 @@
             </el-button>
           </div>
 
-          <!-- 列表 -->
           <div class="notif-list">
             <el-skeleton v-if="loading" :rows="4" animated />
             <template v-else-if="upcomingNotifications.length">
@@ -46,13 +43,11 @@
                 :class="{ unread: !n.isRead }"
                 @click="onItemClick(n)"
               >
-                <!-- 事件类型图标 -->
                 <div class="notif-item-icon" :style="{ color: eventIconColor(n.eventType) }">
                   <el-icon :size="18"><component :is="eventIcon(n.eventType)" /></el-icon>
                 </div>
                 <div class="notif-item-body">
                   <div class="notif-item-title">{{ n.title }}</div>
-                  <!-- 会议开始时间 -->
                   <div v-if="n.bookingStartTimeMs" class="notif-item-meeting-time">
                     <el-icon :size="12"><Clock /></el-icon>
                     {{ formatMeetingTime(n.bookingStartTimeMs) }}
@@ -76,7 +71,6 @@
       </template>
     </el-popover>
 
-    <!-- 通知详情弹窗 -->
     <el-dialog v-model="detailVisible" title="通知详情" width="420px" append-to-body destroy-on-close>
       <div v-if="selectedNotification" class="notif-detail">
         <el-descriptions :column="1" border size="small">
@@ -105,9 +99,7 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Bell, Plus, Edit, Close, Check, Clock, Timer
-} from '@element-plus/icons-vue'
+import { Bell, Plus, Edit, Close, Check, Clock, Timer } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Notification } from '@/types/notification'
 import { getNotifications, getUnreadCount, markAsRead, markAllRead } from '@/api/notification'
@@ -125,10 +117,9 @@ const readingId = ref<number | null>(null)
 const detailVisible = ref(false)
 const selectedNotification = ref<Notification | null>(null)
 
-// 过滤：只展示会议尚未结束的通知
 const upcomingNotifications = computed(() =>
   (notifications.value || []).filter((n) => {
-    if (!n.bookingEndTimeMs) return true // 无法判断时保留
+    if (!n.bookingEndTimeMs) return true
     return n.bookingEndTimeMs > Date.now()
   }),
 )
@@ -137,6 +128,7 @@ const eventTypeMap: Record<string, string> = {
   BOOKING_CREATED: '预约创建',
   BOOKING_UPDATED: '预约变更',
   BOOKING_CANCELED: '预约取消',
+  BOOKING_APPROVAL_REQUIRED: '待审批',
   BOOKING_APPROVED: '预约通过',
   BOOKING_REJECTED: '预约驳回',
   BOOKING_REMINDER: '会议提醒',
@@ -145,12 +137,12 @@ function eventTypeLabel(type: string) {
   return eventTypeMap[type] ?? type
 }
 
-// 图标映射
 function eventIcon(eventType: string) {
   switch (eventType) {
     case 'BOOKING_CREATED': return Plus
     case 'BOOKING_UPDATED': return Edit
     case 'BOOKING_CANCELED': return Close
+    case 'BOOKING_APPROVAL_REQUIRED': return Bell
     case 'BOOKING_APPROVED': return Check
     case 'BOOKING_REMINDER': return Timer
     default: return Bell
@@ -162,6 +154,7 @@ function eventIconColor(eventType: string) {
     case 'BOOKING_CREATED': return '#16a34a'
     case 'BOOKING_UPDATED': return '#3b82f6'
     case 'BOOKING_CANCELED': return '#ef4444'
+    case 'BOOKING_APPROVAL_REQUIRED': return '#f59e0b'
     case 'BOOKING_APPROVED': return '#16a34a'
     case 'BOOKING_REJECTED': return '#ef4444'
     case 'BOOKING_REMINDER': return '#f59e0b'
@@ -195,7 +188,6 @@ function goToBooking() {
 }
 
 const POLL_INTERVAL = 10_000
-
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadUnread() {
@@ -205,6 +197,64 @@ async function loadUnread() {
   } catch (e) {
     console.error('[NotificationBell] loadUnread failed:', e)
   }
+}
+
+async function loadList() {
+  if (!store.isLoggedIn) return
+  loading.value = true
+  try {
+    const page = await getNotifications(store.userId, 0, 20)
+    notifications.value = page?.list ?? []
+    await loadUnread()
+  } catch (e) {
+    console.error('[NotificationBell] loadList failed:', e)
+    ElMessage.error('加载通知失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function togglePanel() {
+  panelVisible.value = !panelVisible.value
+  if (panelVisible.value) {
+    await loadList()
+  }
+}
+
+async function onMarkRead(n: Notification) {
+  if (n.isRead) return
+  readingId.value = n.id
+  try {
+    await markAsRead(n.id)
+    n.isRead = true
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  } catch {
+    ElMessage.error('操作失败')
+  } finally {
+    readingId.value = null
+  }
+}
+
+async function onMarkAllRead() {
+  markingAll.value = true
+  try {
+    await markAllRead(store.userId)
+    notifications.value.forEach((n) => (n.isRead = true))
+    unreadCount.value = 0
+  } catch {
+    ElMessage.error('操作失败')
+  } finally {
+    markingAll.value = false
+  }
+}
+
+function onItemClick(n: Notification) {
+  selectedNotification.value = n
+  detailVisible.value = true
+  if (!n.isRead) {
+    onMarkRead(n)
+  }
+  panelVisible.value = false
 }
 
 function startPolling() {
@@ -228,6 +278,10 @@ watch(
   },
   { immediate: true },
 )
+
+onUnmounted(() => {
+  stopPolling()
+})
 </script>
 
 <style scoped>
