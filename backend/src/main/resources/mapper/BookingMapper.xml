@@ -150,4 +150,28 @@
         order by start_time_ms asc
     </select>
 
+    <select id="findBookingsForReport" resultMap="BookingResultMap">
+        SELECT b.id, b.room_id, b.subject, b.booker_id, b.booker_name,
+               b.start_time_ms, b.end_time_ms, b.attendee_count, b.status,
+               b.approval_status, b.remark, b.version, b.recurrence_type,
+               b.recurrence_end_date, b.parent_id, b.series_index,
+               b.created_at_ms, b.updated_at_ms
+        FROM booking b
+        WHERE b.start_time_ms >= #{startMs} AND b.start_time_ms &lt; #{endMs}
+          <if test="bookerId != null and bookerId.trim().length() > 0">
+            AND b.booker_id = #{bookerId}
+          </if>
+          <if test="keyword != null and keyword.trim().length() > 0">
+            AND LOWER(b.subject) LIKE CONCAT('%', LOWER(#{keyword}), '%')
+          </if>
+          <if test="status != null and status.trim().length() > 0">
+            AND b.status = #{status}
+          </if>
+          <if test="approvalStatus != null and approvalStatus.trim().length() > 0">
+            AND b.approval_status = #{approvalStatus}
+          </if>
+        ORDER BY b.start_time_ms DESC
+        LIMIT 10000
+    </select>
+
 </mapper>

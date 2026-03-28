@@ -25,6 +25,10 @@
           <el-menu-item index="/admin/roles">角色管理</el-menu-item>
           <el-menu-item index="/admin/equipments">设备管理</el-menu-item>
           <el-menu-item index="/admin/config">规则配置</el-menu-item>
+          <el-divider style="margin: 4px 0" />
+          <el-menu-item index="/admin/report/room-usage">使用率统计</el-menu-item>
+          <el-menu-item index="/admin/report/records">预约记录</el-menu-item>
+          <el-menu-item index="/admin/report/user-usage">用户统计</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -203,6 +207,9 @@ const titles: Record<string, string> = {
   '/admin/buildings': '楼栋管理',
   '/admin/rooms': '会议室管理',
   '/admin/pending-bookings': '审批队列',
+  '/admin/report/room-usage': '使用率统计',
+  '/admin/report/records': '预约记录',
+  '/admin/report/user-usage': '用户统计',
 }
 const currentPageTitle = computed(() => titles[route.path] ?? 'Meetr')
 </script>

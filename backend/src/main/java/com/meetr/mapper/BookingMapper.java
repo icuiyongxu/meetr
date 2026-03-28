@@ -178,4 +178,60 @@ public interface BookingMapper {
                            @Param("fromSeriesIndex") Integer fromSeriesIndex,
                            @Param("newStartMs") Long newStartMs,
                            @Param("newEndMs") Long newEndMs);
+
+    /** 有效预约（已确认 + 已通过审批或无需审批） */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+               attendee_count, status, approval_status, remark, version, recurrence_type,
+               recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE start_time_ms >= #{startMs} AND start_time_ms < #{endMs}
+          AND status = 'BOOKED'
+          AND (approval_status = 'APPROVED' OR approval_status = 'NONE')
+        """)
+    List<Booking> findValidBookingsInRange(@Param("startMs") long startMs, @Param("endMs") long endMs);
+
+    /** 已取消预约 */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+               attendee_count, status, approval_status, remark, version, recurrence_type,
+               recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE start_time_ms >= #{startMs} AND start_time_ms < #{endMs}
+          AND status = 'CANCELED'
+        """)
+    List<Booking> findCanceledBookingsInRange(@Param("startMs") long startMs, @Param("endMs") long endMs);
+
+    /** 待审批预约 */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+               attendee_count, status, approval_status, remark, version, recurrence_type,
+               recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE start_time_ms >= #{startMs} AND start_time_ms < #{endMs}
+          AND status = 'BOOKED'
+          AND approval_status = 'PENDING'
+        """)
+    List<Booking> findPendingBookingsInRange(@Param("startMs") long startMs, @Param("endMs") long endMs);
+
+    /** 全部预约（用于报表） */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+               attendee_count, status, approval_status, remark, version, recurrence_type,
+               recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE start_time_ms >= #{startMs} AND start_time_ms < #{endMs}
+        ORDER BY start_time_ms DESC
+        """)
+    List<Booking> findBookingsInRange(@Param("startMs") long startMs, @Param("endMs") long endMs);
+
+    /** 预约记录查询（XML版本，支持动态SQL） */
+    List<Booking> findBookingsForReport(
+        @Param("bookerId") String bookerId,
+        @Param("keyword") String keyword,
+        @Param("status") String status,
+        @Param("approvalStatus") String approvalStatus,
+        @Param("startMs") long startMs,
+        @Param("endMs") long endMs);
 }
+

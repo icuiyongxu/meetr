@@ -12,6 +12,9 @@ const routes = [
   { path: '/admin/users', component: () => import('@/views/admin/UserManage.vue') },
   { path: '/admin/roles', component: () => import('@/views/admin/RoleManage.vue') },
   { path: '/admin/equipments', component: () => import('@/views/admin/EquipmentManage.vue') },
+  { path: '/admin/report/room-usage', component: () => import('@/views/admin/report/ReportRoomUsage.vue') },
+  { path: '/admin/report/records', component: () => import('@/views/admin/report/ReportBookingRecords.vue') },
+  { path: '/admin/report/user-usage', component: () => import('@/views/admin/report/ReportUserUsage.vue') },
   { path: '/kiosk/room/:roomId', component: () => import('@/views/KioskView.vue') },
 ]
 

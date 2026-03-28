@@ -72,4 +72,22 @@ public interface MeetingRoomMapper {
                                     @Param("endTimeMs") Long endTimeMs,
                                     @Param("buildingId") Long buildingId,
                                     @Param("capacity") Integer capacity);
+
+    /** 查询指定楼栋的所有会议室 */
+    @Select("""
+        SELECT id, building_id, name, floor, capacity, equipment, status, remark, created_at_ms, updated_at_ms
+        FROM meeting_room
+        WHERE building_id = #{buildingId}
+        ORDER BY floor ASC, name ASC
+        """)
+    List<MeetingRoom> findByBuildingId(@Param("buildingId") Long buildingId);
+
+    /** 查询所有会议室 */
+    @Select("""
+        SELECT id, building_id, name, floor, capacity, equipment, status, remark, created_at_ms, updated_at_ms
+        FROM meeting_room
+        ORDER BY building_id ASC, floor ASC, name ASC
+        """)
+    List<MeetingRoom> findAll();
 }
+
