@@ -44,26 +44,26 @@
         <el-button type="success" @click="exportExcel">导出 Excel</el-button>
       </div>
 
-      <el-table :data="records" v-loading="loading" stripe>
+      <el-table :data="records" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="subject" label="主题" min-width="180" />
-        <el-table-column prop="buildingName" label="楼栋" width="130" />
-        <el-table-column prop="roomName" label="会议室" width="150" />
-        <el-table-column prop="bookerName" label="预约人" width="120" />
-        <el-table-column label="开始时间" width="170">
+        <el-table-column prop="buildingName" label="楼栋" min-width="100" />
+        <el-table-column prop="roomName" label="会议室" min-width="140" />
+        <el-table-column prop="bookerName" label="预约人" min-width="100" />
+        <el-table-column label="开始时间" min-width="160">
           <template #default="{ row }">{{ fmtDate(row.startTime) }}</template>
         </el-table-column>
-        <el-table-column label="结束时间" width="170">
+        <el-table-column label="结束时间" min-width="160">
           <template #default="{ row }">{{ fmtDate(row.endTime) }}</template>
         </el-table-column>
-        <el-table-column prop="durationMinutes" label="时长(分钟)" width="110" align="center" />
-        <el-table-column label="预约状态" width="100" align="center">
+        <el-table-column prop="durationMinutes" label="时长(分钟)" align="center" />
+        <el-table-column label="预约状态" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.status === 'BOOKED' ? 'success' : 'info'">
               {{ row.status === 'BOOKED' ? '已确认' : '已取消' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="审批状态" width="110" align="center">
+        <el-table-column label="审批状态" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.approvalStatus === 'APPROVED'" size="small" type="success">已通过</el-tag>
             <el-tag v-else-if="row.approvalStatus === 'REJECTED'" size="small" type="danger">已驳回</el-tag>

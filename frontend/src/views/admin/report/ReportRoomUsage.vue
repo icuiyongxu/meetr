@@ -31,22 +31,22 @@
         <el-button type="primary" @click="load">查询</el-button>
       </div>
 
-      <el-table :data="report" v-loading="loading" stripe>
+      <el-table :data="report" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="roomName" label="会议室" min-width="160" />
-        <el-table-column prop="buildingName" label="楼栋" width="140" />
-        <el-table-column prop="totalBookings" label="预约次数" width="100" align="center" />
-        <el-table-column prop="totalMinutes" label="总时长(分钟)" width="120" align="center">
+        <el-table-column prop="buildingName" label="楼栋" min-width="120" />
+        <el-table-column prop="totalBookings" label="预约次数" align="center" />
+        <el-table-column prop="totalMinutes" label="总时长(分钟)" align="center">
           <template #default="{ row }">{{ row.totalMinutes }} 分钟</template>
         </el-table-column>
-        <el-table-column prop="usagePercent" label="使用率" width="100" align="center">
+        <el-table-column prop="usagePercent" label="使用率" align="center">
           <template #default="{ row }">
             <el-progress :percentage="row.usagePercent" :precision="1" :stroke-width="8" />
           </template>
         </el-table-column>
-        <el-table-column prop="canceledCount" label="取消次数" width="100" align="center">
+        <el-table-column prop="canceledCount" label="取消次数" align="center">
           <template #default="{ row }"><span style="color:#909399">{{ row.canceledCount }}</span></template>
         </el-table-column>
-        <el-table-column prop="pendingCount" label="待审批" width="100" align="center">
+        <el-table-column prop="pendingCount" label="待审批" align="center">
           <template #default="{ row }"><span style="color:#f59e0b">{{ row.pendingCount }}</span></template>
         </el-table-column>
       </el-table>
