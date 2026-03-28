@@ -55,15 +55,18 @@
             v-for="room in rooms"
             :key="room.id + '-' + slot.time"
             class="cell"
-            :class="getCellClass(room.id, slot.time)"
+            :class="[getCellClass(room.id, slot.time), { 'is-drag-target': isDragMoveTarget(room.id, slot.time) }]"
+            :data-room-id="room.id"
+            :data-slot-time="slot.time"
             @mousedown.left.prevent="onCellMousedown(room, slot)"
             @mouseenter.left="onCellMouseenter(room, slot)"
           >
             <template v-if="getBookingAt(room.id, slot.time)">
               <div
                 class="booking-block"
-                :class="getBookingBlockClass(getBookingAt(room.id, slot.time))"
+                :class="[getBookingBlockClass(getBookingAt(room.id, slot.time)), { 'is-dragging': dragMoveState?.active && dragMoveState?.booking?.id === getBookingAt(room.id, slot.time)?.id }]"
                 :style="getBookingBlockStyle(getBookingAt(room.id, slot.time), room.id, slot.time)"
+                @mousedown.left.stop.prevent="onBookingMousedown(getBookingAt(room.id, slot.time)!, $event)"
                 @click.stop="onBookingClick(getBookingAt(room.id, slot.time)!)"
               >
                 <div class="booking-subject">
@@ -240,7 +243,7 @@ dayjs.extend(timezone)
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { getBookingsByRoomAndDate, getMyBookings } from '@/api/booking'
-import { createBooking, cancelBooking, checkConflict } from '@/api/booking'
+import { createBooking, cancelBooking, checkConflict, updateBooking } from '@/api/booking'
 import { getBookingRules } from '@/api/config'
 import { useBookingStore } from '@/stores/booking'
 import type { Building } from '@/types/building'
@@ -401,6 +404,125 @@ const dragState = ref<{
   startSlot: { time: string } | null
   currentSlot: { time: string } | null
 }>({ active: false, roomId: null, startSlot: null, currentSlot: null })
+
+// ── 拖拽移动预约 ───────────────────────────────────────
+const dragMoveState = ref<{
+  active: boolean
+  booking: Booking | null
+  roomId: number | null       // 原房间
+  startSlotTime: string | null // 原开始时间
+  origStartMs: number          // 原始开始时间戳
+  origEndMs: number            // 原始结束时间戳
+  targetRoomId: number | null  // 目标房间
+  targetSlotTime: string | null // 目标格子时间
+  dragStarted: boolean          // 是否已开始拖拽
+  startX: number
+  startY: number
+} | null>(null)
+
+function isDragMoveTarget(roomId: number, slotTime: string) {
+  if (!dragMoveState.value?.active) return false
+  return dragMoveState.value.targetRoomId === roomId && dragMoveState.value.targetSlotTime === slotTime
+}
+
+function onBookingMousedown(booking: Booking, e: MouseEvent) {
+  // 仅本人或管理员可拖
+  if (booking.bookerId !== store.userId && !store.isAdmin) return
+  if (booking.status === 'CANCELED') return
+  // 拖拽已过期的预约不允许
+  const nowMs = dayjs.tz(dayjs(), 'Asia/Shanghai').valueOf()
+  if (booking.startTime < nowMs) return
+
+  dragMoveState.value = {
+    active: true,
+    booking,
+    roomId: booking.roomId,
+    startSlotTime: dayjs.tz(booking.startTime, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss'),
+    origStartMs: booking.startTime,
+    origEndMs: booking.endTime,
+    targetRoomId: booking.roomId,
+    targetSlotTime: dayjs.tz(booking.startTime, 'Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss'),
+    dragStarted: false,
+    startX: e.clientX,
+    startY: e.clientY,
+  }
+  document.addEventListener('mousemove', onBookingMousemove)
+  document.addEventListener('mouseup', onBookingMouseup)
+  document.addEventListener('selectstart', preventSelect)
+}
+
+function onBookingMousemove(e: MouseEvent) {
+  if (!dragMoveState.value) return
+  const dx = e.clientX - dragMoveState.value.startX
+  const dy = e.clientY - dragMoveState.value.startY
+  if (!dragMoveState.value.dragStarted && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+    dragMoveState.value.dragStarted = true
+  }
+  if (!dragMoveState.value.dragStarted) return
+
+  // 找到鼠标下的格子
+  const target = getTargetCell(e.clientX, e.clientY)
+  if (target) {
+    dragMoveState.value.targetRoomId = target.roomId
+    dragMoveState.value.targetSlotTime = target.slotTime
+  }
+}
+
+function getTargetCell(clientX: number, clientY: number): { roomId: number; slotTime: string } | null {
+  // 遍历所有格子，找到包含 clientX/clientY 的格子
+  const cells = document.querySelectorAll<HTMLElement>('.cell')
+  for (const cell of cells) {
+    const rect = cell.getBoundingClientRect()
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+      const key = cell.dataset.roomId // 需要给格子加 data-room-id
+      const slotKey = cell.dataset.slotTime
+      if (key && slotKey) {
+        return { roomId: Number(key), slotTime: slotKey }
+      }
+    }
+  }
+  return null
+}
+
+function onBookingMouseup() {
+  document.removeEventListener('mousemove', onBookingMousemove)
+  document.removeEventListener('mouseup', onBookingMouseup)
+  document.removeEventListener('selectstart', preventSelect)
+  if (!dragMoveState.value) return
+
+  const dm = dragMoveState.value
+  dragMoveState.value = null
+
+  if (!dm.dragStarted || !dm.booking) return
+
+  // 计算新时间（时长保持不变）
+  const newTargetMs = dayjs.tz(dm.targetSlotTime!, 'Asia/Shanghai').valueOf()
+  const durationMs = dm.origEndMs - dm.origStartMs
+  const newStartMs = newTargetMs
+  const newEndMs = newStartMs + durationMs
+
+  // 无变化则不调
+  if (newStartMs === dm.origStartMs && newEndMs === dm.origEndMs) return
+
+  submitBookingTimeChange(dm.booking, newStartMs, newEndMs)
+}
+
+async function submitBookingTimeChange(booking: Booking, newStartMs: number, newEndMs: number) {
+  try {
+    await updateBooking(booking.id, {
+      subject: booking.subject,
+      operatorId: store.userId,
+      startTime: newStartMs,
+      endTime: newEndMs,
+      attendeeCount: booking.attendeeCount ?? 1,
+      remark: booking.remark,
+    })
+    ElMessage.success('预约时间已更新')
+    await loadData()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '修改失败')
+  }
+}
 
 function isInDragRange(roomId: number, slotTime: string) {
   if (!dragState.value.active || dragState.value.roomId !== roomId || !dragState.value.startSlot) return false
@@ -816,16 +938,16 @@ onMounted(() => {
   border-radius: 4px;
   padding: 2px 5px;
   overflow: hidden;
-  cursor: pointer;
+  cursor: grab;
   font-size: 11px;
   transition: opacity 0.15s;
 }
 
 .booking-block:hover {
   opacity: 0.85;
+  cursor: grab;
 }
 
-/* 已确认 */
 .booking-block.is-approved {
   background: var(--book-own-bg);
   border-left: 3px solid var(--book-own-border);
@@ -906,5 +1028,17 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   gap: 8px;
+}
+
+/* ── 拖拽移动预约 ───────────────────────────────────── */
+.cell.is-drag-target {
+  background: rgba(59, 130, 246, 0.18) !important;
+  outline: 2px dashed #3b82f6;
+  outline-offset: -2px;
+}
+
+.booking-block.is-dragging {
+  opacity: 0.4;
+  cursor: grabbing;
 }
 </style>
