@@ -341,6 +341,7 @@ function getBookingBlockClass(booking: Booking | null | undefined) {
   return {
     'is-own': booking.bookerId === store.userId,
     'is-others': booking.bookerId !== store.userId,
+    'is-pending': booking.approvalStatus === 'PENDING',
     'is-canceled': booking.status === 'CANCELED',
   }
 }
@@ -870,6 +871,13 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 审批中优先高亮（黄色） */
+.booking-block.is-pending {
+  background: var(--book-pending-bg);
+  border-left: 3px solid var(--book-pending-border);
+  color: var(--book-pending-text);
 }
 
 /* ── 详情 ─────────────────────────────────────────────── */

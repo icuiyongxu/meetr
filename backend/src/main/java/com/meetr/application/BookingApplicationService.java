@@ -4,6 +4,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.meetr.application.dto.*;
 import com.meetr.common.BusinessTime;
+import com.meetr.domain.UserContext;
 import com.meetr.domain.entity.*;
 import com.meetr.domain.enums.ApprovalStatus;
 import com.meetr.domain.enums.BookingStatus;
@@ -113,7 +114,7 @@ public class BookingApplicationService {
         booking.setAttendeeCount(cmd.getAttendeeCount());
         booking.setRemark(cmd.getRemark());
         booking.setStatus(BookingStatus.BOOKED);
-        booking.setApprovalStatus(Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
+        booking.setApprovalStatus(resolveApprovalStatus(config));
         booking.setRecurrenceType(cmd.getRecurrenceType() != null ? cmd.getRecurrenceType() : RecurrenceType.NONE);
         booking.setRecurrenceEndDate(cmd.getRecurrenceEndDate());
         booking.setParentId(parentId);
@@ -129,6 +130,9 @@ public class BookingApplicationService {
         if (booking.getStatus() == BookingStatus.CANCELED) {
             throw new BusinessException(40002, "已取消预约不可修改");
         }
+        if (booking.getApprovalStatus() == ApprovalStatus.REJECTED) {
+            throw new BusinessException(40002, "已驳回预约不可修改");
+        }
 
         MeetingRoom room = requireAvailableRoom(booking.getRoomId());
         RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId());
@@ -138,7 +142,7 @@ public class BookingApplicationService {
         TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
 
         booking.updateDetails(cmd.getSubject(), alignedSlot, cmd.getAttendeeCount(), cmd.getRemark());
-        booking.setApprovalStatus(Boolean.TRUE.equals(config.getApprovalRequired()) ? ApprovalStatus.PENDING : ApprovalStatus.NONE);
+        booking.setApprovalStatus(resolveApprovalStatus(config));
 
         List<RuleViolation> violations = bookingRuleService.validate(booking, room, config);
         if (!violations.isEmpty()) {
@@ -324,6 +328,13 @@ public class BookingApplicationService {
             throw new BusinessException(40002, "楼栋已停用");
         }
         return room;
+    }
+
+    private ApprovalStatus resolveApprovalStatus(RoomConfig config) {
+        if (!Boolean.TRUE.equals(config.getApprovalRequired())) {
+            return ApprovalStatus.NONE;
+        }
+        return UserContext.isAdmin() ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING;
     }
 
     private String normalize(String value) {
