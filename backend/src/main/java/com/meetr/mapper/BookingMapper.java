@@ -56,6 +56,19 @@ public interface BookingMapper {
                                     @Param("dayStartMs") Long dayStartMs,
                                     @Param("dayEndMs") Long dayEndMs);
 
+    /** 查询即将开始的预约（用于会议提醒） */
+    @Select("""
+        select id, room_id, subject, booker_id, booker_name, start_time_ms, end_time_ms,
+               attendee_count, status, approval_status, remark, version, recurrence_type,
+               recurrence_end_date, parent_id, series_index, created_at_ms, updated_at_ms
+        from booking
+        where start_time_ms > #{nowMs}
+          and start_time_ms <= #{untilMs}
+          and status = 'BOOKED'
+        order by start_time_ms asc
+        """)
+    List<Booking> findUpcomingBookings(@Param("nowMs") long nowMs, @Param("untilMs") long untilMs);
+
     long countActiveBookingsOnDay(@Param("bookerId") String bookerId,
                                   @Param("dayStartMs") Long dayStartMs,
                                   @Param("dayEndMs") Long dayEndMs,

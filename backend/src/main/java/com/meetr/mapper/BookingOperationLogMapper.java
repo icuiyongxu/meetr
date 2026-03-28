@@ -22,4 +22,17 @@ public interface BookingOperationLogMapper {
         order by created_at_ms asc
         """)
     java.util.List<BookingOperationLog> findByBookingId(@org.apache.ibatis.annotations.Param("bookingId") Long bookingId);
+
+    /** 查询指定时间窗口内的指定操作类型的 bookingId（用于提醒去重） */
+    @org.apache.ibatis.annotations.Select("""
+        select distinct booking_id
+        from booking_operation_log
+        where created_at_ms > #{windowStartMs}
+          and created_at_ms <= #{nowMs}
+          and operation_type = #{operationType}
+        """)
+    java.util.List<Long> findRemindedBookingIdsInWindow(
+        @org.apache.ibatis.annotations.Param("windowStartMs") long windowStartMs,
+        @org.apache.ibatis.annotations.Param("operationType") String operationType,
+        @org.apache.ibatis.annotations.Param("nowMs") long nowMs);
 }
