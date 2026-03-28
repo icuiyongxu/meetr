@@ -1,5 +1,6 @@
 import { http, unwrap } from '@/api'
 import type { Booking, BookingResult, ConflictCheckResponse } from '@/types/booking'
+import type { BookingDetail } from '@/types/booking-detail'
 
 export function checkConflict(data: {
   roomId: number
@@ -49,6 +50,10 @@ export function getBooking(id: number): Promise<Booking> {
   return unwrap(http.get(`/bookings/${id}`))
 }
 
+export function getBookingDetail(id: number): Promise<BookingDetail> {
+  return unwrap(http.get(`/bookings/${id}/detail`))
+}
+
 export function getMyBookings(params: { bookerId: string; page: number; size: number }) {
   return unwrap(http.get('/bookings/mine', { params }))
 }
@@ -94,12 +99,12 @@ export function getPendingBookings(params: {
   return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/admin/bookings/pending', { params }))
 }
 
-export function approveBooking(id: number, operatorId: string) {
-  return unwrap<Booking>(http.put(`/admin/bookings/${id}/approve`, { operatorId }))
+export function approveBooking(id: number, operatorId: string, remark?: string) {
+  return unwrap<Booking>(http.put(`/admin/bookings/${id}/approve`, { operatorId, remark }))
 }
 
-export function rejectBooking(id: number, operatorId: string) {
-  return unwrap<Booking>(http.put(`/admin/bookings/${id}/reject`, { operatorId }))
+export function rejectBooking(id: number, operatorId: string, remark?: string) {
+  return unwrap<Booking>(http.put(`/admin/bookings/${id}/reject`, { operatorId, remark }))
 }
 
 // ── 系列预约 ──────────────────────────────────────────────

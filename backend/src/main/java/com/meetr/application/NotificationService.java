@@ -9,6 +9,7 @@ import com.meetr.domain.entity.SysUser;
 import com.meetr.domain.enums.BookingStatus;
 import com.meetr.domain.enums.NotificationEventType;
 import com.meetr.mapper.BookingAttendeeMapper;
+import com.meetr.mapper.BookingOperationLogMapper;
 import com.meetr.mapper.MeetingRoomMapper;
 import com.meetr.mapper.NotificationMapper;
 import com.meetr.mapper.SysUserMapper;
@@ -28,6 +29,7 @@ public class NotificationService {
     private final SysUserMapper sysUserMapper;
     private final MeetingRoomMapper meetingRoomMapper;
     private final BookingAttendeeMapper bookingAttendeeMapper;
+    private final BookingOperationLogMapper bookingOperationLogMapper;
     private final EmailService emailService;
 
     /**
@@ -93,10 +95,33 @@ public class NotificationService {
             case BOOKING_UPDATED  -> base + "预约信息已变更，请注意查看。";
             case BOOKING_CANCELED  -> base + "该预约已被取消。";
             case BOOKING_APPROVAL_REQUIRED -> base + "该预约正在等待管理员审批，请及时处理。";
-            case BOOKING_APPROVED  -> base + "您的预约已通过审批。";
-            case BOOKING_REJECTED  -> base + "很遗憾，您的预约未通过审批。";
+            case BOOKING_APPROVED  -> base + "您的预约已通过审批。" + approvalRemarkSummary(booking.getId(), "审批通过");
+            case BOOKING_REJECTED  -> base + "很遗憾，您的预约未通过审批。" + approvalRemarkSummary(booking.getId(), "审批驳回");
             case BOOKING_REMINDER  -> base + "会议即将开始，请准时参加。";
         };
+    }
+
+    private String approvalRemarkSummary(Long bookingId, String prefix) {
+        if (bookingId == null) return "";
+        try {
+            var logs = bookingOperationLogMapper.findByBookingId(bookingId);
+            if (logs == null || logs.isEmpty()) return "";
+            for (int i = logs.size() - 1; i >= 0; i--) {
+                var log = logs.get(i);
+                if (log.getOperationType() == null) continue;
+                if ("APPROVE".equals(log.getOperationType()) || "REJECT".equals(log.getOperationType())) {
+                    String content = log.getContent();
+                    if (content == null || content.isBlank()) return "";
+                    if (content.startsWith(prefix + "：")) {
+                        return "\n审批意见：" + content.substring((prefix + "：").length());
+                    }
+                    return "\n审批意见：" + content;
+                }
+            }
+        } catch (Exception e) {
+            return "";
+        }
+        return "";
     }
 
     private String formatTimeRange(Long startMs, Long endMs) {

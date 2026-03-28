@@ -23,6 +23,7 @@ import com.meetr.mapper.BookingMapper;
 import com.meetr.mapper.BookingOperationLogMapper;
 import com.meetr.mapper.BuildingMapper;
 import com.meetr.mapper.MeetingRoomMapper;
+import com.meetr.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class BookingApplicationService {
     private final BookingRuleService bookingRuleService;
     private final RecurrenceExpander recurrenceExpander;
     private final AdminUserService adminUserService;
+    private final AuthService authService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -212,6 +214,24 @@ public class BookingApplicationService {
         return toDto(requireBooking(id));
     }
 
+    public BookingDetailDTO getDetail(Long id) {
+        Booking booking = requireBooking(id);
+        BookingDetailDTO detail = new BookingDetailDTO();
+        detail.setBooking(toDto(booking));
+        detail.setOperationLogs(bookingOperationLogMapper.findByBookingId(id).stream().map(log -> {
+            BookingOperationLogDTO dto = new BookingOperationLogDTO();
+            dto.setId(log.getId());
+            dto.setBookingId(log.getBookingId());
+            dto.setOperationType(log.getOperationType());
+            dto.setOperatorId(log.getOperatorId());
+            dto.setOperatorName(log.getOperatorName());
+            dto.setContent(log.getContent());
+            dto.setCreatedAtMs(log.getCreatedAtMs());
+            return dto;
+        }).toList());
+        return detail;
+    }
+
     public PageResult<BookingDTO> getMyBookings(String bookerId, int page, int size) {
         PageHelper.startPage(page + 1, size);
         List<Booking> bookings = bookingMapper.findByBookerIdOrderByStartTimeMsDesc(bookerId);
@@ -250,7 +270,7 @@ public class BookingApplicationService {
     }
 
     @Transactional
-    public BookingDTO approveBooking(Long bookingId, String operatorId) {
+    public BookingDTO approveBooking(Long bookingId, String operatorId, String remark) {
         Objects.requireNonNull(operatorId, "operatorId must not be null");
         Booking booking = requireBooking(bookingId);
         if (booking.getStatus() == BookingStatus.CANCELED) {
@@ -262,13 +282,15 @@ public class BookingApplicationService {
 
         booking.setApprovalStatus(ApprovalStatus.APPROVED);
         updateBooking(booking);
-        saveLog(booking.getId(), "APPROVE", operatorId, operatorId, "审批通过");
+        String operatorName = resolveOperatorName(operatorId);
+        String content = (remark == null || remark.isBlank()) ? "审批通过" : "审批通过：" + remark.trim();
+        saveLog(booking.getId(), "APPROVE", operatorId, operatorName, content);
         publishEvent(NotificationEventType.BOOKING_APPROVED, booking, booking.getBookerId(), null);
         return toDto(booking);
     }
 
     @Transactional
-    public BookingDTO rejectBooking(Long bookingId, String operatorId) {
+    public BookingDTO rejectBooking(Long bookingId, String operatorId, String remark) {
         Objects.requireNonNull(operatorId, "operatorId must not be null");
         Booking booking = requireBooking(bookingId);
         if (booking.getStatus() == BookingStatus.CANCELED) {
@@ -280,7 +302,9 @@ public class BookingApplicationService {
 
         booking.setApprovalStatus(ApprovalStatus.REJECTED);
         updateBooking(booking);
-        saveLog(booking.getId(), "REJECT", operatorId, operatorId, "审批驳回");
+        String operatorName = resolveOperatorName(operatorId);
+        String content = (remark == null || remark.isBlank()) ? "审批驳回" : "审批驳回：" + remark.trim();
+        saveLog(booking.getId(), "REJECT", operatorId, operatorName, content);
         publishEvent(NotificationEventType.BOOKING_REJECTED, booking, booking.getBookerId(), null);
         return toDto(booking);
     }
@@ -427,6 +451,17 @@ public class BookingApplicationService {
         dto.setRecurrenceEndDate(booking.getRecurrenceEndDate());
         dto.setParentId(booking.getParentId());
         dto.setSeriesIndex(booking.getSeriesIndex());
+
+        var logs = bookingOperationLogMapper.findByBookingId(booking.getId());
+        for (int i = logs.size() - 1; i >= 0; i--) {
+            var log = logs.get(i);
+            if ("APPROVE".equals(log.getOperationType()) || "REJECT".equals(log.getOperationType())) {
+                dto.setLastApprovalOperatorId(log.getOperatorId());
+                dto.setLastApprovalOperatorName(log.getOperatorName());
+                dto.setLastApprovalAtMs(log.getCreatedAtMs());
+                break;
+            }
+        }
         return dto;
     }
 
@@ -530,6 +565,17 @@ public class BookingApplicationService {
         }
         eventPublisher.publishEvent(new com.meetr.domain.event.BookingDomainEvent(
             this, NotificationEventType.BOOKING_APPROVAL_REQUIRED, booking, adminIds));
+    }
+
+    private String resolveOperatorName(String operatorId) {
+        if (operatorId == null || operatorId.isBlank()) {
+            return null;
+        }
+        try {
+            return authService.getUserDetail(operatorId).name();
+        } catch (Exception e) {
+            return operatorId;
+        }
     }
 
     public record PageResult<T>(List<T> content, long totalElements) {

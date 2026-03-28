@@ -56,6 +56,15 @@
             <el-tag type="warning">待审批</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="最近审批" width="200">
+          <template #default="{ row }">
+            <template v-if="row.lastApprovalAtMs">
+              <div>{{ row.lastApprovalOperatorName || row.lastApprovalOperatorId || '-' }}</div>
+              <div style="color: #909399; font-size: 12px">{{ formatBusinessDateTime(row.lastApprovalAtMs) }}</div>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column v-if="canApprove" label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="success" size="small" link @click="handleApprove(row)">通过</el-button>
@@ -102,7 +111,30 @@
             <span v-else>-</span>
           </el-descriptions-item>
           <el-descriptions-item label="备注">{{ detail.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审批记录">
+            <div v-if="detailLogs.length">
+              <div v-for="log in detailLogs" :key="log.id" style="margin-bottom: 6px">
+                <strong>{{ log.operationType }}</strong>
+                <span style="margin-left: 6px">{{ log.operatorName || log.operatorId || '-' }}</span>
+                <span style="margin-left: 8px; color: #909399">{{ formatBusinessDateTime(log.createdAtMs) }}</span>
+                <div style="margin-top: 2px; color: #606266">{{ log.content }}</div>
+              </div>
+            </div>
+            <span v-else>-</span>
+          </el-descriptions-item>
         </el-descriptions>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="remarkVisible" :title="remarkMode === 'approve' ? '审批通过' : '审批驳回'" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="审批意见">
+          <el-input v-model="approvalRemark" type="textarea" :rows="4" placeholder="可填写审批意见" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="remarkVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitApproval">确认</el-button>
       </template>
     </el-dialog>
   </div>
@@ -114,7 +146,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Booking } from '@/types/booking'
 import type { Building } from '@/types/building'
 import type { Room } from '@/types/room'
-import { approveBooking, getBooking, getPendingBookings, rejectBooking } from '@/api/booking'
+import { approveBooking, getBookingDetail, getPendingBookings, rejectBooking } from '@/api/booking'
+import type { BookingDetail, BookingOperationLog } from '@/types/booking-detail'
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { useBookingStore } from '@/stores/booking'
@@ -210,10 +243,10 @@ async function handleApprove(row: Booking) {
     ElMessage.warning('当前无权限审批预约')
     return
   }
-  await ElMessageBox.confirm(`确认通过预约《${row.subject}》？`, '审批确认', { type: 'warning' })
-  await approveBooking(row.id, store.userId)
-  ElMessage.success('审批通过')
-  await load()
+  remarkMode.value = 'approve'
+  remarkTarget.value = row
+  approvalRemark.value = ''
+  remarkVisible.value = true
 }
 
 async function handleReject(row: Booking) {
@@ -221,18 +254,41 @@ async function handleReject(row: Booking) {
     ElMessage.warning('当前无权限审批预约')
     return
   }
-  await ElMessageBox.confirm(`确认驳回预约《${row.subject}》？`, '审批确认', { type: 'warning' })
-  await rejectBooking(row.id, store.userId)
-  ElMessage.success('已驳回')
+  remarkMode.value = 'reject'
+  remarkTarget.value = row
+  approvalRemark.value = ''
+  remarkVisible.value = true
+}
+
+async function submitApproval() {
+  if (!remarkTarget.value) return
+  if (remarkMode.value === 'reject' && !approvalRemark.value.trim()) {
+    ElMessage.warning('驳回时请填写原因')
+    return
+  }
+  if (remarkMode.value === 'approve') {
+    await approveBooking(remarkTarget.value.id, store.userId, approvalRemark.value.trim() || undefined)
+    ElMessage.success('审批通过')
+  } else {
+    await rejectBooking(remarkTarget.value.id, store.userId, approvalRemark.value.trim())
+    ElMessage.success('已驳回')
+  }
+  remarkVisible.value = false
+  remarkTarget.value = null
+  approvalRemark.value = ''
   await load()
 }
 
-const detailVisible = ref(false)
-const detail = ref<Booking | null>(null)
+const approvalRemark = ref('')
+const remarkVisible = ref(false)
+const remarkMode = ref<'approve' | 'reject'>('approve')
+const remarkTarget = ref<Booking | null>(null)
 
 async function openDetail(row: Booking) {
   detailVisible.value = true
-  detail.value = await getBooking(row.id)
+  const resp: BookingDetail = await getBookingDetail(row.id)
+  detail.value = resp.booking
+  detailLogs.value = resp.operationLogs || []
 }
 
 onMounted(async () => {

@@ -31,6 +31,10 @@ public class BookingDTO {
     private Long version;
     private List<BookingAttendeeDTO> attendees = new ArrayList<>();
 
+    private String lastApprovalOperatorId;
+    private String lastApprovalOperatorName;
+    private Long lastApprovalAtMs;
+
     /** 重复类型 */
     private RecurrenceType recurrenceType;
     /** 重复结束日期 */

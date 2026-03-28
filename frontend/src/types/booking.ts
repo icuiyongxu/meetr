@@ -36,6 +36,10 @@ export interface Booking {
   parentId?: number
   /** 系列序号（主预约=1） */
   seriesIndex?: number
+
+  lastApprovalOperatorId?: string
+  lastApprovalOperatorName?: string
+  lastApprovalAtMs?: number
 }
 
 export interface BookingConflictDTO {

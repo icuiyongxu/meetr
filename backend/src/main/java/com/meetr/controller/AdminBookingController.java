@@ -1,11 +1,10 @@
 package com.meetr.controller;
 
 import com.meetr.application.BookingApplicationService;
+import com.meetr.application.dto.BookingApprovalRequest;
 import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.PendingBookingQuery;
 import com.meetr.config.RequirePermission;
-import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,19 +34,13 @@ public class AdminBookingController {
 
     @RequirePermission("booking:approve")
     @PutMapping("/{id}/approve")
-    public ApiResponse<BookingDTO> approve(@PathVariable Long id, @RequestBody ApproveRejectRequest request) {
-        return ApiResponse.ok(bookingApplicationService.approveBooking(id, request.getOperatorId()));
+    public ApiResponse<BookingDTO> approve(@PathVariable Long id, @RequestBody BookingApprovalRequest request) {
+        return ApiResponse.ok(bookingApplicationService.approveBooking(id, request.getOperatorId(), request.getRemark()));
     }
 
     @RequirePermission("booking:approve")
     @PutMapping("/{id}/reject")
-    public ApiResponse<BookingDTO> reject(@PathVariable Long id, @RequestBody ApproveRejectRequest request) {
-        return ApiResponse.ok(bookingApplicationService.rejectBooking(id, request.getOperatorId()));
-    }
-
-    @Data
-    public static class ApproveRejectRequest {
-        @NotBlank
-        private String operatorId;
+    public ApiResponse<BookingDTO> reject(@PathVariable Long id, @RequestBody BookingApprovalRequest request) {
+        return ApiResponse.ok(bookingApplicationService.rejectBooking(id, request.getOperatorId(), request.getRemark()));
     }
 }

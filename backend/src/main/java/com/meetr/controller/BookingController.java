@@ -2,6 +2,7 @@ package com.meetr.controller;
 
 import com.meetr.application.BookingApplicationService;
 import com.meetr.application.dto.BookingDTO;
+import com.meetr.application.dto.BookingDetailDTO;
 import com.meetr.application.dto.BookingResult;
 import com.meetr.application.dto.BookingSearchRequest;
 import com.meetr.application.dto.ConflictCheckRequest;
@@ -52,6 +53,12 @@ public class BookingController {
     @GetMapping("/{id}")
     public ApiResponse<BookingDTO> getById(@PathVariable Long id) {
         return ApiResponse.ok(bookingApplicationService.getById(id));
+    }
+
+    @RequirePermission("booking:view")
+    @GetMapping("/{id}/detail")
+    public ApiResponse<BookingDetailDTO> getDetail(@PathVariable Long id) {
+        return ApiResponse.ok(bookingApplicationService.getDetail(id));
     }
 
     @RequirePermission("booking:view")

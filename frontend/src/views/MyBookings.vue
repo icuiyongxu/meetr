@@ -77,6 +77,17 @@
           <el-descriptions-item label="备注">
             {{ detail.remark || '-' }}
           </el-descriptions-item>
+          <el-descriptions-item label="审批记录">
+            <div v-if="detailLogs.length">
+              <div v-for="log in detailLogs" :key="log.id" style="margin-bottom: 6px">
+                <strong>{{ log.operationType }}</strong>
+                <span style="margin-left: 6px">{{ log.operatorName || log.operatorId || '-' }}</span>
+                <span style="margin-left: 8px; color: #909399">{{ new Date(log.createdAtMs).toLocaleString('zh-CN') }}</span>
+                <div style="margin-top: 2px; color: #606266">{{ log.content }}</div>
+              </div>
+            </div>
+            <span v-else>-</span>
+          </el-descriptions-item>
         </el-descriptions>
       </template>
       <el-skeleton v-else :rows="6" animated />
@@ -93,7 +104,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Booking } from '@/types/booking'
 import BookingList from '@/components/BookingList.vue'
 import SeriesDetail from '@/components/SeriesDetail.vue'
-import { cancelBooking, getBooking, getMyBookings, getTodayBookings, searchBookings } from '@/api/booking'
+import { cancelBooking, getBookingDetail, getMyBookings, getTodayBookings, searchBookings } from '@/api/booking'
+import type { BookingDetail, BookingOperationLog } from '@/types/booking-detail'
 import { useBookingStore } from '@/stores/booking'
 import { businessDayEndMs, businessDayStartMs, formatRange } from '@/utils/datetime'
 
@@ -226,6 +238,7 @@ function changeSize(s: number) {
 
 const detailVisible = ref(false)
 const detail = ref<Booking | null>(null)
+const detailLogs = ref<BookingOperationLog[]>([])
 
 const seriesVisible = ref(false)
 const seriesBookingId = ref<number | undefined>(undefined)
@@ -234,7 +247,9 @@ async function openDetail(b: Booking) {
   detailVisible.value = true
   detail.value = null
   try {
-    detail.value = await getBooking(b.id)
+    const resp: BookingDetail = await getBookingDetail(b.id)
+    detail.value = resp.booking
+    detailLogs.value = resp.operationLogs || []
   } catch {
     detailVisible.value = false
   }
