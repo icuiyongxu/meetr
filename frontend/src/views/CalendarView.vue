@@ -339,8 +339,7 @@ function getCellClass(roomId: number, slotTime: string) {
 function getBookingBlockClass(booking: Booking | null | undefined) {
   if (!booking) return {}
   return {
-    'is-own': booking.bookerId === store.userId,
-    'is-others': booking.bookerId !== store.userId,
+    'is-approved': booking.status !== 'CANCELED' && booking.approvalStatus !== 'PENDING',
     'is-pending': booking.approvalStatus === 'PENDING',
     'is-canceled': booking.status === 'CANCELED',
   }
@@ -826,18 +825,21 @@ onMounted(() => {
   opacity: 0.85;
 }
 
-.booking-block.is-own {
+/* 已确认 */
+.booking-block.is-approved {
   background: var(--book-own-bg);
   border-left: 3px solid var(--book-own-border);
   color: var(--book-own-text);
 }
 
-.booking-block.is-others {
-  background: var(--book-other-bg);
-  border-left: 3px solid var(--book-other-border);
-  color: var(--book-other-text);
+/* 审批中优先高亮（黄色） */
+.booking-block.is-pending {
+  background: var(--book-pending-bg);
+  border-left: 3px solid var(--book-pending-border);
+  color: var(--book-pending-text);
 }
 
+/* 已取消 */
 .booking-block.is-canceled {
   background: var(--book-canceled-bg);
   border-left: 3px solid #d1d5db;
@@ -858,8 +860,17 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.is-own .recurring-badge    { color: var(--book-own-text); }
-.is-others .recurring-badge { color: var(--book-other-text); }
+.booking-block.is-approved .recurring-badge {
+  color: var(--book-own-text);
+}
+
+.booking-block.is-pending .recurring-badge {
+  color: var(--book-pending-text);
+}
+
+.booking-block.is-canceled .recurring-badge {
+  color: var(--book-canceled-text);
+}
 
 .booking-time {
   opacity: 0.8;
@@ -871,13 +882,6 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* 审批中优先高亮（黄色） */
-.booking-block.is-pending {
-  background: var(--book-pending-bg);
-  border-left: 3px solid var(--book-pending-border);
-  color: var(--book-pending-text);
 }
 
 /* ── 详情 ─────────────────────────────────────────────── */
