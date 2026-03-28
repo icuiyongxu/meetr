@@ -17,6 +17,7 @@
           <template #title>管理</template>
           <el-menu-item index="/admin/buildings">楼栋管理</el-menu-item>
           <el-menu-item index="/admin/rooms">会议室管理</el-menu-item>
+          <el-menu-item index="/admin/pending-bookings">审批队列</el-menu-item>
           <el-menu-item index="/admin/users">用户管理</el-menu-item>
           <el-menu-item index="/admin/roles">角色管理</el-menu-item>
           <el-menu-item index="/admin/equipments">设备管理</el-menu-item>
@@ -179,6 +180,7 @@ const titles: Record<string, string> = {
   '/admin/equipments': '设备管理',
   '/admin/buildings': '楼栋管理',
   '/admin/rooms': '会议室管理',
+  '/admin/pending-bookings': '审批队列',
 }
 const currentPageTitle = computed(() => titles[route.path] ?? 'Meetr')
 </script>

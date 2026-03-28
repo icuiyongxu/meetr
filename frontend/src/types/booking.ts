@@ -5,6 +5,8 @@ export type RecurrenceType = 'NONE' | 'DAILY' | 'WEEKLY' | 'WORKDAY' | 'MONTHLY'
 export interface BookingAttendee {
   id?: string
   name?: string
+  userId?: string
+  userName?: string
 }
 
 export interface Booking {

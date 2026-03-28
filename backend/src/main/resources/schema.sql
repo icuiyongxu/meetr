@@ -192,25 +192,27 @@ INSERT IGNORE INTO sys_role (id, code, name, description) VALUES
 
 -- ---- 权限 ----
 INSERT IGNORE INTO sys_permission (id, code, name, description) VALUES
-(1,  'room:view',        '查看会议室', '查看会议室'),
-(2,  'room:manage',      '管理会议室', '管理会议室'),
-(3,  'building:view',     '查看楼栋', '查看楼栋'),
-(4,  'building:manage',   '管理楼栋', '管理楼栋'),
-(5,  'booking:view',      '查看预约', '查看预约'),
-(6,  'booking:manage',    '管理预约', '管理预约'),
-(7,  'booking:approve',   '审批预约', '审批预约'),
-(8,  'user:view',         '查看用户', '查看用户'),
-(9,  'user:manage',       '管理用户', '管理用户'),
-(10, 'role:manage',       '管理角色', '管理角色'),
-(11, 'config:view',       '查看配置', '查看配置'),
-(12, 'config:manage',     '管理配置', '管理配置');
+(1,  'room:view',             '查看会议室', '查看会议室'),
+(2,  'room:manage',           '管理会议室', '管理会议室'),
+(3,  'building:view',         '查看楼栋', '查看楼栋'),
+(4,  'building:manage',       '管理楼栋', '管理楼栋'),
+(5,  'booking:view',          '查看预约', '查看预约'),
+(6,  'booking:manage',        '管理预约', '管理预约'),
+(7,  'booking:approve',       '审批预约', '审批预约'),
+(8,  'user:view',             '查看用户', '查看用户'),
+(9,  'user:manage',           '管理用户', '管理用户'),
+(10, 'role:manage',           '管理角色', '管理角色与权限'),
+(11, 'config:view',           '查看配置', '查看规则配置'),
+(12, 'config:manage',         '管理配置', '管理规则配置'),
+(13, 'notification:view',     '查看通知', '查看通知'),
+(14, 'notification:manage',   '管理通知', '标记已读和处理通知');
 
 -- ---- 角色-权限关联 ----
 INSERT IGNORE INTO sys_role_permission (role_id, permission_id) VALUES
 -- ADMIN 拥有全部权限
-(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),
+(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),(1,13),(1,14),
 -- USER 拥有基础权限
-(2,1),(2,3),(2,5),(2,6);
+(2,1),(2,3),(2,5),(2,6),(2,13),(2,14);
 
 -- ---- 用户（admin / admin123，BCrypt 预加密）----
 INSERT IGNORE INTO sys_user (id, user_id, name, password, status, created_at_ms, updated_at_ms) VALUES

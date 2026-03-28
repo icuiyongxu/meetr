@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -231,6 +232,52 @@ public class BookingApplicationService {
         return new PageResult<>(dtos, pageInfo.getTotal());
     }
 
+    public PageResult<BookingDTO> getPendingBookings(PendingBookingQuery query) {
+        PageHelper.startPage(query.getPage() + 1, query.getSize());
+        List<Booking> bookings = bookingMapper.findPendingBookings(
+            query.getBuildingId(), query.getRoomId(), normalize(query.getBookerId()), normalize(query.getKeyword()),
+            query.getStartDateMs(), query.getEndDateMs());
+        PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
+        List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
+        return new PageResult<>(dtos, pageInfo.getTotal());
+    }
+
+    @Transactional
+    public BookingDTO approveBooking(Long bookingId, String operatorId) {
+        Objects.requireNonNull(operatorId, "operatorId must not be null");
+        Booking booking = requireBooking(bookingId);
+        if (booking.getStatus() == BookingStatus.CANCELED) {
+            throw new BusinessException(40002, "已取消预约不可审批");
+        }
+        if (booking.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new BusinessException(40002, "当前预约不是待审批状态");
+        }
+
+        booking.setApprovalStatus(ApprovalStatus.APPROVED);
+        updateBooking(booking);
+        saveLog(booking.getId(), "APPROVE", operatorId, operatorId, "审批通过");
+        publishEvent(NotificationEventType.BOOKING_APPROVED, booking, booking.getBookerId(), null);
+        return toDto(booking);
+    }
+
+    @Transactional
+    public BookingDTO rejectBooking(Long bookingId, String operatorId) {
+        Objects.requireNonNull(operatorId, "operatorId must not be null");
+        Booking booking = requireBooking(bookingId);
+        if (booking.getStatus() == BookingStatus.CANCELED) {
+            throw new BusinessException(40002, "已取消预约不可审批");
+        }
+        if (booking.getApprovalStatus() != ApprovalStatus.PENDING) {
+            throw new BusinessException(40002, "当前预约不是待审批状态");
+        }
+
+        booking.setApprovalStatus(ApprovalStatus.REJECTED);
+        updateBooking(booking);
+        saveLog(booking.getId(), "REJECT", operatorId, operatorId, "审批驳回");
+        publishEvent(NotificationEventType.BOOKING_REJECTED, booking, booking.getBookerId(), null);
+        return toDto(booking);
+    }
+
     public List<BookingDTO> getBookingsByRoomAndDate(Long roomId, Long dayStartMs, Long dayEndMs) {
         return bookingMapper.findByRoomIdAndDate(roomId, dayStartMs, dayEndMs).stream()
             .map(this::toDto)
@@ -277,6 +324,10 @@ public class BookingApplicationService {
             throw new BusinessException(40002, "楼栋已停用");
         }
         return room;
+    }
+
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void assertOperator(Booking booking, String operatorId) {

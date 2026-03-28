@@ -66,7 +66,7 @@
       </el-form>
 
       <div class="footer">
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button v-if="canManage" type="primary" :loading="saving" @click="save">保存</el-button>
       </div>
     </el-card>
   </div>
@@ -77,7 +77,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { getRooms } from '@/api/room'
 import { getBookingRules, saveBookingRules } from '@/api/config'
+import { useBookingStore } from '@/stores/booking'
 import type { Room } from '@/types/room'
+
+const store = useBookingStore()
+const canManage = computed(() => store.isAdmin)
 
 const roomOptions = ref<Room[]>([])
 const selectedRoomId = ref<number | null>(null)

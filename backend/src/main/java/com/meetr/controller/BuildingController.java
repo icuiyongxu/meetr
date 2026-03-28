@@ -17,6 +17,7 @@ public class BuildingController {
 
     private final BuildingApplicationService buildingApplicationService;
 
+    @RequirePermission("building:view")
     @GetMapping("/api/buildings")
     public ApiResponse<List<BuildingDTO>> list() {
         return ApiResponse.ok(buildingApplicationService.list());

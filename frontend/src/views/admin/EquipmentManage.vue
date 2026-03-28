@@ -6,7 +6,7 @@
       <template #header>
         <div class="panel-header">
           <span class="panel-title">设备列表</span>
-          <el-button type="primary" size="small" @click="openCreateDialog">新增设备</el-button>
+          <el-button v-if="canManage()" type="primary" size="small" @click="openCreateDialog">新增设备</el-button>
         </div>
       </template>
 
@@ -20,7 +20,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column v-if="canManage()" label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="openEditDialog(row)">编辑</el-button>
             <el-button
@@ -65,6 +65,10 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getEquipments, createEquipment, updateEquipment, deleteEquipment, type Equipment } from '@/api/equipment'
+import { useBookingStore } from '@/stores/booking'
+
+const store = useBookingStore()
+const canManage = () => store.isAdmin
 
 const equipments = ref<Equipment[]>([])
 const loading = ref(false)
@@ -76,12 +80,20 @@ const formSaving = ref(false)
 const form = ref({ id: 0, code: '', name: '' })
 
 function openCreateDialog() {
+  if (!canManage()) {
+    ElMessage.warning('当前无权限管理设备')
+    return
+  }
   formMode.value = 'create'
   form.value = { id: 0, code: '', name: '' }
   formVisible.value = true
 }
 
 function openEditDialog(row: Equipment) {
+  if (!canManage()) {
+    ElMessage.warning('当前无权限管理设备')
+    return
+  }
   formMode.value = 'edit'
   form.value = { id: row.id, code: row.code, name: row.name }
   formVisible.value = true

@@ -22,6 +22,7 @@ public class RoomController {
     private final RoomApplicationService roomApplicationService;
     private final BookingApplicationService bookingApplicationService;
 
+    @RequirePermission("room:view")
     @GetMapping("/api/rooms")
     public ApiResponse<List<RoomDTO>> list(@RequestParam(required = false) Long buildingId,
                                            @RequestParam(required = false) String floor,
@@ -42,6 +43,7 @@ public class RoomController {
         return ApiResponse.ok(bookingApplicationService.getBookingsByRoomAndDate(roomId, dayStartMs, dayEndMs));
     }
 
+    @RequirePermission("room:view")
     @GetMapping("/api/rooms/available")
     public ApiResponse<List<RoomDTO>> available(@RequestParam Long startTimeMs,
                                                 @RequestParam Long endTimeMs,
@@ -50,6 +52,7 @@ public class RoomController {
         return ApiResponse.ok(roomApplicationService.available(startTimeMs, endTimeMs, buildingId, capacity));
     }
 
+    @RequirePermission("room:view")
     @GetMapping("/api/rooms/{id}")
     public ApiResponse<RoomDTO> getById(@PathVariable Long id) {
         return ApiResponse.ok(roomApplicationService.getById(id));

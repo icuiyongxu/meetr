@@ -77,6 +77,27 @@ export function searchBookings(params: {
   return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/bookings/search', { params }))
 }
 
+export function getPendingBookings(params: {
+  buildingId?: number
+  roomId?: number
+  bookerId?: string
+  keyword?: string
+  startDateMs?: number
+  endDateMs?: number
+  page: number
+  size: number
+}) {
+  return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/admin/bookings/pending', { params }))
+}
+
+export function approveBooking(id: number, operatorId: string) {
+  return unwrap<Booking>(http.put(`/admin/bookings/${id}/approve`, { operatorId }))
+}
+
+export function rejectBooking(id: number, operatorId: string) {
+  return unwrap<Booking>(http.put(`/admin/bookings/${id}/reject`, { operatorId }))
+}
+
 // ── 系列预约 ──────────────────────────────────────────────
 
 export interface SeriesBookingResponse {
@@ -101,4 +122,3 @@ export function getSeriesBookings(bookingId: number, bookerId: string) {
 export function updateFutureSeries(bookingId: number, data: UpdateFutureSeriesRequest) {
   return unwrap<SeriesBookingResponse>(http.put(`/bookings/${bookingId}/future`, data))
 }
-

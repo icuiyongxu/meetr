@@ -167,7 +167,32 @@ public class AuthService {
             return null;
         }
         return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(),
-            getUserRoles(userId), user.getEmail(), user.getEmailEnabled());
+            getUserRoles(userId), getUserPermissions(userId), user.getEmail(), user.getEmailEnabled());
+    }
+
+    public List<String> getUserPermissions(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return List.of();
+        }
+        if (hasRole(userId, "ADMIN")) {
+            return sysPermissionMapper.findAll().stream()
+                .map(SysPermission::getCode)
+                .toList();
+        }
+        java.util.Set<String> perms = new java.util.HashSet<>();
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            return List.of();
+        }
+        for (SysUserRole relation : sysUserRoleMapper.findByUserId(user.getId())) {
+            for (SysRolePermission rolePermission : sysRolePermissionMapper.findByRoleId(relation.getRoleId())) {
+                SysPermission permission = sysPermissionMapper.findById(rolePermission.getPermissionId());
+                if (permission != null) {
+                    perms.add(permission.getCode());
+                }
+            }
+        }
+        return perms.stream().sorted().toList();
     }
 
     @Transactional
@@ -217,6 +242,6 @@ public class AuthService {
     }
 
     public record UserDetail(Long id, String userId, String name, String status, List<String> roles,
-                             String email, Boolean emailEnabled) {
+                             List<String> permissions, String email, Boolean emailEnabled) {
     }
 }

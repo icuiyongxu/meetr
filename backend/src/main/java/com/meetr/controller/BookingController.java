@@ -54,6 +54,7 @@ public class BookingController {
         return ApiResponse.ok(bookingApplicationService.getById(id));
     }
 
+    @RequirePermission("booking:view")
     @GetMapping("/mine")
     public ApiResponse<BookingApplicationService.PageResult<BookingDTO>> mine(
             @RequestParam String bookerId,
@@ -62,6 +63,7 @@ public class BookingController {
         return ApiResponse.ok(bookingApplicationService.getMyBookings(bookerId, page, size));
     }
 
+    @RequirePermission("booking:view")
     @GetMapping("/today")
     public ApiResponse<List<BookingDTO>> today(@RequestParam String bookerId) {
         return ApiResponse.ok(bookingApplicationService.getTodayBookings(bookerId));
@@ -75,6 +77,7 @@ public class BookingController {
         return ApiResponse.ok(bookingApplicationService.searchBookings(request));
     }
 
+    @RequirePermission("booking:manage")
     @PostMapping("/check-conflict")
     public ApiResponse<ConflictCheckResponse> checkConflict(@Valid @RequestBody ConflictCheckRequest request) {
         return ApiResponse.ok(bookingApplicationService.checkConflict(request));

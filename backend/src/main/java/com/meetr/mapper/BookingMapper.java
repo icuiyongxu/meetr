@@ -82,6 +82,13 @@ public interface BookingMapper {
                                  @Param("startTimeFrom") Long startTimeFrom,
                                  @Param("startTimeTo") Long startTimeTo);
 
+    Page<Booking> findPendingBookings(@Param("buildingId") Long buildingId,
+                                     @Param("roomId") Long roomId,
+                                     @Param("bookerId") String bookerId,
+                                     @Param("keyword") String keyword,
+                                     @Param("startTimeFrom") Long startTimeFrom,
+                                     @Param("startTimeTo") Long startTimeTo);
+
     /**
      * 找到系列所有预约（包含 master），按 seriesIndex 升序。
      * 如果传入的是子预约ID，会先查出 masterId 再查全系列。

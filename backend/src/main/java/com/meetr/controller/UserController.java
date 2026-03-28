@@ -1,6 +1,6 @@
 package com.meetr.controller;
 
-import com.meetr.domain.entity.SysUser;
+import com.meetr.config.RequirePermission;
 import com.meetr.mapper.SysUserMapper;
 import com.meetr.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +18,7 @@ public class UserController {
 
     public record UserDTO(Long id, String userId, String name, String status, List<String> roles) {}
 
+    @RequirePermission("user:view")
     @GetMapping
     public ApiResponse<List<UserDTO>> list() {
         return ApiResponse.ok(sysUserMapper.findAll().stream().map(u -> {
@@ -26,6 +27,7 @@ public class UserController {
         }).toList());
     }
 
+    @RequirePermission("user:view")
     @GetMapping("/{userId}")
     public ApiResponse<UserDTO> get(@PathVariable String userId) {
         AuthService.UserDetail detail = authService.getUserDetail(userId);

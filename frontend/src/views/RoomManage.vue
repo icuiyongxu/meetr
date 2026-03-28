@@ -9,7 +9,7 @@
           <el-option v-for="b in buildings" :key="b.id" :label="b.name" :value="b.id" />
         </el-select>
         <el-button type="primary" :loading="loading" @click="load">查询</el-button>
-        <el-button :disabled="loading" @click="openCreate">新增会议室</el-button>
+        <el-button v-if="canManage" :disabled="loading" @click="openCreate">新增会议室</el-button>
       </div>
 
       <el-table :data="rooms" v-loading="loading" style="width: 100%">
@@ -40,7 +40,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="启用" width="110">
+        <el-table-column v-if="canManage" label="启用" width="110">
           <template #default="{ row }">
             <el-switch
               :model-value="row.status === 'ENABLED'"
@@ -50,9 +50,9 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" :width="canManage ? 180 : 100" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canManage" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="primary" plain @click="openKiosk(row)">大屏</el-button>
           </template>
         </el-table-column>
@@ -101,10 +101,14 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { getBuildings } from '@/api/building'
 import { createRoom, getRooms, updateRoom, updateRoomStatus } from '@/api/room'
 import { getEquipments, type Equipment } from '@/api/equipment'
+import { useBookingStore } from '@/stores/booking'
 import type { Building } from '@/types/building'
 import type { Room } from '@/types/room'
 
 type RoomRow = Room & { _updating?: boolean }
+
+const store = useBookingStore()
+const canManage = computed(() => store.isAdmin)
 
 const buildings = ref<Building[]>([])
 const equipmentList = ref<Equipment[]>([])

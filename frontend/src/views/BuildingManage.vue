@@ -4,7 +4,7 @@
 
     <el-card shadow="never">
       <div class="toolbar">
-        <el-button type="primary" @click="openCreate">+ 新增楼栋</el-button>
+        <el-button v-if="canManage" type="primary" @click="openCreate">+ 新增楼栋</el-button>
       </div>
 
       <el-table :data="buildings" v-loading="loading" style="width: 100%">
@@ -23,7 +23,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column v-if="canManage" label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" plain @click="onDelete(row)">删除</el-button>
@@ -62,7 +62,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { getBuildings, createBuilding, updateBuilding } from '@/api/building'
+import { useBookingStore } from '@/stores/booking'
 import type { Building } from '@/types/building'
+
+const store = useBookingStore()
+const canManage = computed(() => store.isAdmin)
 
 const buildings = ref<Building[]>([])
 const loading = ref(false)
@@ -98,6 +102,10 @@ async function load() {
 }
 
 function openCreate() {
+  if (!canManage.value) {
+    ElMessage.warning('当前无权限操作楼栋')
+    return
+  }
   editingId.value = null
   form.name = ''
   form.campus = ''
@@ -108,6 +116,10 @@ function openCreate() {
 }
 
 function openEdit(row: Building) {
+  if (!canManage.value) {
+    ElMessage.warning('当前无权限操作楼栋')
+    return
+  }
   editingId.value = row.id
   form.name = row.name
   form.campus = row.campus || ''

@@ -120,4 +120,34 @@
         order by start_time_ms desc
     </select>
 
+    <select id="findPendingBookings" resultMap="BookingResultMap">
+        select <include refid="BaseColumns"/>
+        from booking
+        <where>
+            and approval_status = 'PENDING'
+            and status &lt;&gt; 'CANCELED'
+            <if test="roomId != null">
+                and room_id = #{roomId}
+            </if>
+            <if test="buildingId != null">
+                and room_id in (
+                    select id from meeting_room where building_id = #{buildingId}
+                )
+            </if>
+            <if test="bookerId != null and bookerId != ''">
+                and booker_id = #{bookerId}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                and lower(subject) like concat('%', lower(#{keyword}), '%')
+            </if>
+            <if test="startTimeFrom != null">
+                and start_time_ms &gt;= #{startTimeFrom}
+            </if>
+            <if test="startTimeTo != null">
+                and start_time_ms &lt;= #{startTimeTo}
+            </if>
+        </where>
+        order by start_time_ms asc
+    </select>
+
 </mapper>
