@@ -395,6 +395,7 @@ public class BookingApplicationService {
     }
 
     private void assertOperator(Booking booking, String operatorId) {
+        if (UserContext.isAdmin()) return;
         if (!booking.getBookerId().equals(operatorId)) {
             throw new BusinessException(40301, "无权操作该预约");
         }
