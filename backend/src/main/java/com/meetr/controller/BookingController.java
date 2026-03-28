@@ -1,6 +1,8 @@
 package com.meetr.controller;
 
 import com.meetr.application.BookingApplicationService;
+import com.meetr.application.dto.CancelSeriesRequest;
+import com.meetr.application.dto.UpdateSeriesRequest;
 import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.BookingDetailDTO;
 import com.meetr.application.dto.BookingResult;
@@ -120,5 +122,27 @@ public class BookingController {
             @Valid @RequestBody UpdateFutureSeriesRequest request) {
         return ApiResponse.ok(
             bookingApplicationService.updateFutureSeries(id, request.getOperatorId(), request));
+    }
+
+    /**
+     * 统一修改系列预约（scope=ONCE / FUTURE / ALL）。
+     */
+    @RequirePermission("booking:manage")
+    @PutMapping("/{id}/series")
+    public ApiResponse<BookingResult> updateSeries(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateSeriesRequest request) {
+        return ApiResponse.ok(bookingApplicationService.updateSeries(id, request));
+    }
+
+    /**
+     * 统一取消系列预约（scope=ONCE / FUTURE / ALL）。
+     */
+    @RequirePermission("booking:manage")
+    @PostMapping("/{id}/series-cancel")
+    public ApiResponse<SeriesBookingResponse> cancelSeries(
+            @PathVariable Long id,
+            @Valid @RequestBody CancelSeriesRequest request) {
+        return ApiResponse.ok(bookingApplicationService.cancelSeries(id, request));
     }
 }

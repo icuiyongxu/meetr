@@ -121,6 +121,34 @@ public interface BookingMapper {
                                     @Param("bookerId") String bookerId);
 
     /**
+     * 根据 series master ID 找到所有子预约（不含 master），按 seriesIndex 升序。
+     */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms,
+               end_time_ms, attendee_count, status, approval_status, remark,
+               version, recurrence_type, recurrence_end_date, parent_id,
+               series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE parent_id = #{masterId}
+        ORDER BY series_index ASC
+        """)
+    List<Booking> findChildBookingsByMasterId(@Param("masterId") Long masterId);
+
+    /**
+     * 根据 master ID 找到主预约（seriesIndex = 1）。
+     */
+    @Select("""
+        SELECT id, room_id, subject, booker_id, booker_name, start_time_ms,
+               end_time_ms, attendee_count, status, approval_status, remark,
+               version, recurrence_type, recurrence_end_date, parent_id,
+               series_index, created_at_ms, updated_at_ms
+        FROM booking
+        WHERE id = #{masterId}
+        LIMIT 1
+        """)
+    Booking findMasterById(@Param("masterId") Long masterId);
+
+    /**
      * 批量更新系列中从指定 seriesIndex 开始的所有预约的开始和结束时间。
      * 时长保持与原时间差一致。
      */

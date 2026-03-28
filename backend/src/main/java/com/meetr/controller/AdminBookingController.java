@@ -5,15 +5,15 @@ import com.meetr.application.dto.BookingApprovalRequest;
 import com.meetr.application.dto.BookingDTO;
 import com.meetr.application.dto.PendingBookingQuery;
 import com.meetr.config.RequirePermission;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Validated
 @RestController
@@ -33,6 +33,41 @@ public class AdminBookingController {
     }
 
     @RequirePermission("booking:approve")
+    @PutMapping("/batch-approve")
+    public ApiResponse<BatchResult> batchApprove(@RequestBody @Valid BatchRequest request) {
+        int success = 0;
+        int skipped = 0;
+        for (Long id : request.getBookingIds()) {
+            try {
+                bookingApplicationService.approveBooking(id, request.getOperatorId(), request.getRemark());
+                success++;
+            } catch (Exception e) {
+                skipped++;
+            }
+        }
+        return ApiResponse.ok(new BatchResult(success, skipped));
+    }
+
+    @RequirePermission("booking:approve")
+    @PutMapping("/batch-reject")
+    public ApiResponse<BatchResult> batchReject(@RequestBody @Valid BatchRejectRequest request) {
+        if (request.getRemark() == null || request.getRemark().isBlank()) {
+            throw new IllegalArgumentException("批量驳回时必须填写原因");
+        }
+        int success = 0;
+        int skipped = 0;
+        for (Long id : request.getBookingIds()) {
+            try {
+                bookingApplicationService.rejectBooking(id, request.getOperatorId(), request.getRemark());
+                success++;
+            } catch (Exception e) {
+                skipped++;
+            }
+        }
+        return ApiResponse.ok(new BatchResult(success, skipped));
+    }
+
+    @RequirePermission("booking:approve")
     @PutMapping("/{id}/approve")
     public ApiResponse<BookingDTO> approve(@PathVariable Long id, @RequestBody BookingApprovalRequest request) {
         return ApiResponse.ok(bookingApplicationService.approveBooking(id, request.getOperatorId(), request.getRemark()));
@@ -43,4 +78,25 @@ public class AdminBookingController {
     public ApiResponse<BookingDTO> reject(@PathVariable Long id, @RequestBody BookingApprovalRequest request) {
         return ApiResponse.ok(bookingApplicationService.rejectBooking(id, request.getOperatorId(), request.getRemark()));
     }
+
+    @Data
+    public static class BatchRequest {
+        @NotEmpty
+        private List<Long> bookingIds;
+        @NotNull
+        private String operatorId;
+        private String remark;
+    }
+
+    @Data
+    public static class BatchRejectRequest {
+        @NotEmpty
+        private List<Long> bookingIds;
+        @NotNull
+        private String operatorId;
+        @NotNull
+        private String remark;
+    }
+
+    public record BatchResult(int successCount, int skippedCount) {}
 }

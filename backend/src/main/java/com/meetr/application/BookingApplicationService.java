@@ -12,6 +12,7 @@ import com.meetr.domain.enums.BuildingStatus;
 import com.meetr.domain.enums.NotificationEventType;
 import com.meetr.domain.enums.RecurrenceType;
 import com.meetr.domain.enums.RoomStatus;
+import com.meetr.domain.enums.SeriesScope;
 import com.meetr.domain.service.BookingRuleService;
 import com.meetr.domain.service.ConflictCheckService;
 import com.meetr.domain.service.RecurrenceExpander;
@@ -100,8 +101,7 @@ public class BookingApplicationService {
 
                 persistBooking(child);
                 syncAttendees(child.getId(), cmd.getAttendeeIds());
-                publishEvent(NotificationEventType.BOOKING_CREATED, child, cmd.getBookerId(), cmd.getAttendeeIds());
-                notifyApproversIfNeeded(child, config);
+                // 系列子预约不重复通知管理员，统一由 master 触发
             }
         }
 
@@ -280,12 +280,25 @@ public class BookingApplicationService {
             throw new BusinessException(40002, "当前预约不是待审批状态");
         }
 
-        booking.setApprovalStatus(ApprovalStatus.APPROVED);
-        updateBooking(booking);
+        // 系列：审批时批量更新整个系列，而不是只处理一条
+        Long masterId = booking.getParentId() != null ? booking.getParentId() : booking.getId();
+        List<Booking> seriesBookings = booking.getSeriesIndex() == 1
+            ? bookingMapper.findSeriesBookings(booking.getId(), booking.getBookerId())
+            : bookingMapper.findByParentIdOrderBySeriesIndexAsc(masterId);
+
         String operatorName = resolveOperatorName(operatorId);
         String content = (remark == null || remark.isBlank()) ? "审批通过" : "审批通过：" + remark.trim();
-        saveLog(booking.getId(), "APPROVE", operatorId, operatorName, content);
-        publishEvent(NotificationEventType.BOOKING_APPROVED, booking, booking.getBookerId(), null);
+
+        for (Booking b : seriesBookings) {
+            if (b.getApprovalStatus() != ApprovalStatus.PENDING) {
+                continue;
+            }
+            b.setApprovalStatus(ApprovalStatus.APPROVED);
+            updateBooking(b);
+            saveLog(b.getId(), "APPROVE", operatorId, operatorName, content);
+            publishEvent(NotificationEventType.BOOKING_APPROVED, b, b.getBookerId(), null);
+        }
+
         return toDto(booking);
     }
 
@@ -300,12 +313,25 @@ public class BookingApplicationService {
             throw new BusinessException(40002, "当前预约不是待审批状态");
         }
 
-        booking.setApprovalStatus(ApprovalStatus.REJECTED);
-        updateBooking(booking);
+        // 系列：审批时批量更新整个系列，而不是只处理一条
+        Long masterId = booking.getParentId() != null ? booking.getParentId() : booking.getId();
+        List<Booking> seriesBookings = booking.getSeriesIndex() == 1
+            ? bookingMapper.findSeriesBookings(booking.getId(), booking.getBookerId())
+            : bookingMapper.findByParentIdOrderBySeriesIndexAsc(masterId);
+
         String operatorName = resolveOperatorName(operatorId);
         String content = (remark == null || remark.isBlank()) ? "审批驳回" : "审批驳回：" + remark.trim();
-        saveLog(booking.getId(), "REJECT", operatorId, operatorName, content);
-        publishEvent(NotificationEventType.BOOKING_REJECTED, booking, booking.getBookerId(), null);
+
+        for (Booking b : seriesBookings) {
+            if (b.getApprovalStatus() != ApprovalStatus.PENDING) {
+                continue;
+            }
+            b.setApprovalStatus(ApprovalStatus.REJECTED);
+            updateBooking(b);
+            saveLog(b.getId(), "REJECT", operatorId, operatorName, content);
+            publishEvent(NotificationEventType.BOOKING_REJECTED, b, b.getBookerId(), null);
+        }
+
         return toDto(booking);
     }
 
@@ -533,6 +559,163 @@ public class BookingApplicationService {
             "修改系列第" + req.getFromSeriesIndex() + "场及后续预约的时间");
 
         return getSeriesBookings(bookingId, operatorId);
+    }
+
+    /**
+     * 统一修改系列预约（scope=ONCE / FUTURE / ALL）。
+     * scope=ONCE：仅修改当前一条
+     * scope=FUTURE：修改当前及后续所有实例
+     * scope=ALL：修改整个系列全部实例
+     */
+    @Transactional
+    public BookingResult updateSeries(Long bookingId, UpdateSeriesRequest request) {
+        Objects.requireNonNull(request.getOperatorId(), "operatorId must not be null");
+        Objects.requireNonNull(request.getScope(), "scope must not be null");
+
+        Booking seed = bookingMapper.findById(bookingId);
+        if (seed == null) {
+            throw new BusinessException(40001, "预约不存在");
+        }
+        assertOperator(seed, request.getOperatorId());
+
+        Long masterId = seed.getParentId() != null ? seed.getParentId() : seed.getId();
+        SeriesScope scope = request.getScope();
+        List<Booking> affected = collectAffected(masterId, seed, scope);
+
+        // 校验与冲突检测
+        for (Booking b : affected) {
+            if (b.getStatus() == BookingStatus.CANCELED) {
+                throw new BusinessException(40002, "已取消的预约不可修改");
+            }
+            MeetingRoom room = meetingRoomMapper.findById(b.getRoomId());
+            List<RuleViolation> violations = bookingRuleService.validate(b, room,
+                roomConfigApplicationService.getEnabledEffectiveConfigEntity(room.getId()));
+            if (!violations.isEmpty()) {
+                throw new BusinessException(40002, "违反规则：" + violations.get(0).message());
+            }
+            ConflictCheckService.ConflictResult conflict = conflictCheckService.hasConflict(
+                room.getId(), new TimeSlot(BusinessTime.msToUtcLocalDateTime(b.getStartTimeMs()),
+                    BusinessTime.msToUtcLocalDateTime(b.getEndTimeMs())), b.getId());
+            if (conflict.conflict()) {
+                throw new BusinessException(40002, "时间冲突：" + conflict.conflictingBookings().get(0).getSubject());
+            }
+        }
+
+        // 应用修改
+        for (Booking b : affected) {
+            if (request.getSubject() != null && !request.getSubject().isBlank()) {
+                b.setSubject(request.getSubject());
+            }
+            if (request.getStartTime() != null && request.getEndTime() != null) {
+                b.setStartTimeMs(request.getStartTime());
+                b.setEndTimeMs(request.getEndTime());
+            } else if (request.getStartTime() != null) {
+                long offset = request.getStartTime() - b.getStartTimeMs();
+                b.setStartTimeMs(request.getStartTime());
+                b.setEndTimeMs(b.getEndTimeMs() + offset);
+            } else if (request.getEndTime() != null) {
+                b.setEndTimeMs(request.getEndTime());
+            }
+            if (request.getAttendeeCount() != null) {
+                b.setAttendeeCount(request.getAttendeeCount());
+            }
+            if (request.getRemark() != null) {
+                b.setRemark(request.getRemark());
+            }
+            RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(b.getRoomId());
+            if (Boolean.TRUE.equals(config.getApprovalRequired()) && !UserContext.isAdmin()) {
+                b.setApprovalStatus(ApprovalStatus.PENDING);
+            }
+            b.setVersion(b.getVersion() == null ? 1L : b.getVersion() + 1);
+            b.setUpdatedAtMs(System.currentTimeMillis());
+            bookingMapper.update(b);
+        }
+
+        String scopeLabel = scope.name();
+        String content = "修改系列（范围：" + scopeLabel + "）";
+        for (Booking b : affected) {
+            saveLog(b.getId(), "UPDATE_SERIES_" + scopeLabel, request.getOperatorId(),
+                resolveOperatorName(request.getOperatorId()), content);
+            publishEvent(NotificationEventType.BOOKING_UPDATED, b, b.getBookerId(), null);
+        }
+
+        return BookingResult.success(toDto(bookingMapper.findById(bookingId)));
+    }
+
+    /**
+     * 统一取消系列预约（scope=ONCE / FUTURE / ALL）。
+     */
+    @Transactional
+    public SeriesBookingResponse cancelSeries(Long bookingId, CancelSeriesRequest request) {
+        Objects.requireNonNull(request.getOperatorId(), "operatorId must not be null");
+        Objects.requireNonNull(request.getScope(), "scope must not be null");
+
+        Booking seed = bookingMapper.findById(bookingId);
+        if (seed == null) {
+            throw new BusinessException(40001, "预约不存在");
+        }
+        assertOperator(seed, request.getOperatorId());
+
+        Long masterId = seed.getParentId() != null ? seed.getParentId() : seed.getId();
+        SeriesScope scope = request.getScope();
+        List<Booking> affected = collectAffected(masterId, seed, scope);
+
+        String scopeLabel = scope.name();
+        for (Booking b : affected) {
+            if (b.getStatus() == BookingStatus.CANCELED) {
+                continue;
+            }
+            b.cancel();
+            b.setVersion(b.getVersion() == null ? 1L : b.getVersion() + 1);
+            b.setUpdatedAtMs(System.currentTimeMillis());
+            bookingMapper.update(b);
+            saveLog(b.getId(), "CANCEL_SERIES_" + scopeLabel, request.getOperatorId(),
+                resolveOperatorName(request.getOperatorId()), "取消系列预约（范围：" + scopeLabel + "）");
+            publishEvent(NotificationEventType.BOOKING_CANCELED, b, b.getBookerId(), null);
+        }
+
+        return getSeriesBookings(bookingId, seed.getBookerId());
+    }
+
+    /**
+     * 根据 scope 计算受影响的所有预约实例。
+     */
+    private List<Booking> collectAffected(Long masterId, Booking seed, SeriesScope scope) {
+        List<Booking> result = new java.util.ArrayList<>();
+        Booking master = seed.getParentId() != null ? bookingMapper.findById(masterId) : seed;
+
+        if (scope == SeriesScope.ONCE) {
+            result.add(seed);
+        } else if (scope == SeriesScope.FUTURE) {
+            result.add(seed);
+            List<Booking> children = bookingMapper.findByParentIdOrderBySeriesIndexAsc(masterId);
+            boolean past = false;
+            for (Booking child : children) {
+                if (child.getId().equals(seed.getId())) {
+                    past = true;
+                    continue;
+                }
+                if (!past && child.getStatus() != BookingStatus.CANCELED) {
+                    result.add(child);
+                }
+            }
+            if (seed.getParentId() == null) {
+                for (Booking child : children) {
+                    if (child.getStatus() != BookingStatus.CANCELED) {
+                        result.add(child);
+                    }
+                }
+            }
+        } else { // ALL
+            result.add(master);
+            List<Booking> children = bookingMapper.findByParentIdOrderBySeriesIndexAsc(masterId);
+            for (Booking child : children) {
+                if (child.getStatus() != BookingStatus.CANCELED) {
+                    result.add(child);
+                }
+            }
+        }
+        return result;
     }
 
     private void publishEvent(NotificationEventType eventType, Booking booking,

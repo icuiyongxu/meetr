@@ -184,7 +184,13 @@ function goToBooking() {
   if (!selectedNotification.value?.bookingId) return
   detailVisible.value = false
   panelVisible.value = false
-  router.push(`/my-bookings?bookingId=${selectedNotification.value.bookingId}`)
+  const n = selectedNotification.value
+  // 待审批通知 -> 跳审批队列
+  if (n.eventType === 'BOOKING_APPROVAL_REQUIRED' && store.isAdmin) {
+    router.push(`/admin/pending-bookings`)
+  } else {
+    router.push(`/my-bookings?bookingId=${n.bookingId}`)
+  }
 }
 
 const POLL_INTERVAL = 10_000

@@ -2,12 +2,13 @@
   <el-dialog
     v-model="visible"
     :title="seriesTitle"
-    width="700px"
+    width="780px"
     :close-on-click-modal="false"
   >
     <el-skeleton v-if="loading" :rows="6" animated />
     <template v-else-if="series">
-      <!-- 主预约信息 -->
+
+      <!-- 主预约基础信息 -->
       <el-descriptions :column="2" border size="small" style="margin-bottom: 16px">
         <el-descriptions-item label="会议室">{{ series.master.roomName }}</el-descriptions-item>
         <el-descriptions-item label="主题">{{ series.master.subject }}</el-descriptions-item>
@@ -15,50 +16,40 @@
         <el-descriptions-item label="结束日期">{{ series.master.recurrenceEndDate || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <!-- 系列操作：修改后续时间 -->
-      <div class="update-future-bar">
-        <span class="bar-label">从第</span>
-        <el-input-number v-model="fromIndex" :min="2" :max="series.totalCount" size="small" />
-        <span class="bar-label">场开始，将时间调整为</span>
-        <el-time-select
-          v-model="newStartTime"
-          placeholder="开始时间"
-          size="small"
-          start="00:00"
-          step="00:15"
-          end="23:45"
-          style="width: 100px"
-        />
-        <span class="bar-label">-</span>
-        <el-time-select
-          v-model="newEndTime"
-          placeholder="结束时间"
-          size="small"
-          start="00:00"
-          step="00:15"
-          end="23:45"
-          style="width: 100px"
-        />
-        <el-button type="primary" size="small" :loading="updatingFuture" @click="onUpdateFuture">
-          批量修改
+      <!-- 修改操作栏 -->
+      <div class="action-bar">
+        <span class="action-label">修改范围：</span>
+        <el-radio-group v-model="updateScope" size="small">
+          <el-radio-button value="ONCE">仅本次</el-radio-button>
+          <el-radio-button value="FUTURE">本次及后续</el-radio-button>
+          <el-radio-button value="ALL">整个系列</el-radio-button>
+        </el-radio-group>
+        <el-divider direction="vertical" />
+        <span class="action-label">新主题：</span>
+        <el-input v-model="updateSubject" placeholder="不填则保持原值" size="small" style="width: 160px" clearable />
+        <el-button type="primary" size="small" :loading="submittingUpdate" @click="onUpdateSeries">
+          确认修改
         </el-button>
       </div>
 
       <!-- 系列实例列表 -->
-      <div class="series-list-title">
-        系列预约（共 {{ series.totalCount }} 场）
-      </div>
+      <div class="section-title">系列预约（共 {{ series.totalCount }} 场）</div>
 
       <el-table :data="allSeriesBookings" stripe size="small">
         <el-table-column label="#" width="50" prop="seriesIndex" />
-        <el-table-column label="日期" prop="startTime" :formatter="(r: any) => formatDate(r.startTime)" />
+        <el-table-column label="日期" :formatter="(r: any) => formatDate(r.startTime)" />
         <el-table-column label="时间" :formatter="(r: any) => formatTimeRange(r.startTime, r.endTime)" />
-        <el-table-column label="状态" width="90">
+        <el-table-column label="预约状态" width="90">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+            <el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140">
+        <el-table-column label="审批状态" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="approvalTagType(row.approvalStatus)">{{ approvalLabel(row.approvalStatus) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
           <template #default="{ row }">
             <el-button
               v-if="row.status !== 'CANCELED'"
@@ -78,15 +69,43 @@
 
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
-      <el-button
-        type="danger"
-        plain
-        :loading="cancelingSeries"
-        @click="onCancelSeries"
-      >
-        取消整个系列
+      <el-button type="danger" plain :loading="submittingCancel" @click="onShowCancelDialog">
+        取消系列
       </el-button>
     </template>
+
+    <!-- 取消确认弹窗 -->
+    <el-dialog
+      v-model="cancelDialogVisible"
+      title="取消系列预约"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        title="选择取消范围"
+        type="info"
+        :closable="false"
+        style="margin-bottom: 16px"
+      />
+      <el-radio-group v-model="cancelScope" style="margin-bottom: 16px">
+        <el-radio value="ONCE">仅取消本次</el-radio>
+        <el-radio value="FUTURE">取消本次及后续所有场次</el-radio>
+        <el-radio value="ALL">取消整个系列全部场次</el-radio>
+      </el-radio-group>
+      <div v-if="cancelScope === 'FUTURE'" style="color: #909399; font-size: 12px; margin-bottom: 8px">
+        将取消当前及之后所有未开始的场次
+      </div>
+      <div v-if="cancelScope === 'ALL'" style="color: #f56c6c; font-size: 12px; margin-bottom: 8px">
+        将取消整个系列全部 {{ series?.totalCount }} 场次，此操作不可恢复
+      </div>
+      <template #footer>
+        <el-button @click="cancelDialogVisible = false">返回</el-button>
+        <el-button type="danger" :loading="submittingCancelAction" @click="onConfirmCancel">
+          确认取消
+        </el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
@@ -94,7 +113,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Booking } from '@/types/booking'
-import { getSeriesBookings, updateFutureSeries, cancelBooking } from '@/api/booking'
+import { getSeriesBookings, updateSeries, cancelSeries, type SeriesScope } from '@/api/booking'
 import type { SeriesBookingResponse } from '@/api/booking'
 import { formatBusinessDateTime } from '@/utils/datetime'
 
@@ -116,20 +135,25 @@ const visible = computed({
 
 const series = ref<SeriesBookingResponse | null>(null)
 const loading = ref(false)
-const updatingFuture = ref(false)
+const submittingUpdate = ref(false)
+const submittingCancel = ref(false)
+const submittingCancelAction = ref(false)
 const skippingId = ref<number | null>(null)
-const cancelingSeries = ref(false)
 
-// 修改后续时间的控件
-const fromIndex = ref(2)
-const newStartTime = ref('')
-const newEndTime = ref('')
+// 修改范围
+const updateScope = ref<SeriesScope>('ONCE')
+const updateSubject = ref('')
+
+// 取消范围
+const cancelDialogVisible = ref(false)
+const cancelScope = ref<SeriesScope>('ONCE')
 
 watch(visible, async (v) => {
   if (v && props.bookingId) {
     await loadSeries()
-    // 默认从第2场开始（即第一个子预约）
-    fromIndex.value = 2
+    updateScope.value = 'ONCE'
+    cancelScope.value = 'ONCE'
+    updateSubject.value = ''
     newStartTime.value = ''
     newEndTime.value = ''
   }
@@ -176,8 +200,11 @@ function recurrenceLabel(type?: string) {
   return type ? (map[type] ?? type) : '-'
 }
 
-function statusType(status?: string) {
-  return status === 'CANCELED' ? 'info' : status === 'PENDING' ? 'warning' : 'success'
+function statusTagType(status?: string) {
+  const map: Record<string, string> = {
+    BOOKED: 'success', CANCELED: 'info', FINISHED: '', PENDING: 'warning',
+  }
+  return map[status ?? ''] ?? 'info'
 }
 
 function statusLabel(status?: string) {
@@ -187,11 +214,52 @@ function statusLabel(status?: string) {
   return status ? (map[status] ?? status) : '-'
 }
 
-// 跳过本次（取消单个子预约）
+function approvalTagType(status?: string) {
+  const map: Record<string, string> = {
+    APPROVED: 'success', REJECTED: 'danger', PENDING: 'warning', NONE: 'info',
+  }
+  return map[status ?? ''] ?? 'info'
+}
+
+function approvalLabel(status?: string) {
+  const map: Record<string, string> = {
+    APPROVED: '已通过', REJECTED: '已驳回', PENDING: '待审批', NONE: '无需审批',
+  }
+  return status ? (map[status] ?? status) : '-'
+}
+
+// 确认修改（使用 scope 范围）
+async function onUpdateSeries() {
+  if (!series.value) return
+  const master = series.value.master
+  await ElMessageBox.confirm(
+    `确定按「${scopeLabel(updateScope.value)}」修改吗？`,
+    '确认修改',
+    { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' },
+  )
+  submittingUpdate.value = true
+  try {
+    await updateSeries(master.id, {
+      operatorId: props.bookerId,
+      scope: updateScope.value,
+      subject: updateSubject.value || undefined,
+    })
+    ElMessage.success('修改成功')
+    updateSubject.value = ''
+    await loadSeries()
+    emit('series-updated')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '修改失败')
+  } finally {
+    submittingUpdate.value = false
+  }
+}
+
+// 跳过本次（取消单个子预约，等同于 scope=ONCE）
 async function onSkipOne(booking: Booking) {
   try {
     await ElMessageBox.confirm(
-      `确定跳过 ${formatDate(booking.startTime)} 的这场预约吗？其他场次不受影响。`,
+      `确定跳过 ${formatDate(booking.startTime)} 的这场预约吗？`,
       '跳过本次',
       { type: 'warning', confirmButtonText: '跳过', cancelButtonText: '取消' },
     )
@@ -200,7 +268,7 @@ async function onSkipOne(booking: Booking) {
   }
   skippingId.value = booking.id
   try {
-    await cancelBooking(booking.id, props.bookerId, false)
+    await cancelSeries(booking.id, { operatorId: props.bookerId, scope: 'ONCE' })
     ElMessage.success('已跳过')
     await loadSeries()
     emit('series-updated')
@@ -211,98 +279,69 @@ async function onSkipOne(booking: Booking) {
   }
 }
 
-// 批量修改后续时间
-async function onUpdateFuture() {
-  if (!newStartTime.value || !newEndTime.value) {
-    ElMessage.warning('请填写新的开始和结束时间')
-    return
-  }
+function onShowCancelDialog() {
+  cancelScope.value = 'ONCE'
+  cancelDialogVisible.value = true
+}
+
+async function onConfirmCancel() {
   if (!series.value) return
-  const master = series.value.master
-
-  // 用 master 的日期 + 新的时间拼出新的 epoch ms
-  const baseDate = formatBusinessDateTime(master.startTime, 'YYYY-MM-DD')
-  const newStartMs = new Date(`${baseDate}T${newStartTime.value}:00+08:00`).getTime()
-  const newEndMs = new Date(`${baseDate}T${newEndTime.value}:00+08:00`).getTime()
-
-  if (newEndMs <= newStartMs) {
-    ElMessage.warning('结束时间必须晚于开始时间')
-    return
+  const scopeLabelMap: Record<string, string> = {
+    ONCE: '仅本次', FUTURE: '本次及后续所有场次', ALL: `整个系列全部 ${series.value.totalCount} 场次`,
   }
-
   try {
     await ElMessageBox.confirm(
-      `确定将第 ${fromIndex.value} 场及后续所有场次的时间统一调整为 ${newStartTime.value} - ${newEndTime.value} 吗？`,
-      '批量修改时间',
-      { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' },
+      `确定取消（${scopeLabelMap[cancelScope.value]}）吗？`,
+      '确认取消',
+      { type: 'warning', confirmButtonText: '确认取消', cancelButtonText: '返回' },
     )
   } catch {
     return
   }
-
-  updatingFuture.value = true
+  submittingCancelAction.value = true
   try {
-    await updateFutureSeries(master.id, {
+    await cancelSeries(series.value.master.id, {
       operatorId: props.bookerId,
-      newStartTimeMs: newStartMs,
-      newEndTimeMs: newEndMs,
-      fromSeriesIndex: fromIndex.value,
+      scope: cancelScope.value,
     })
-    ElMessage.success('已批量修改')
+    ElMessage.success('已取消')
+    cancelDialogVisible.value = false
     await loadSeries()
     emit('series-updated')
-  } catch {
-    ElMessage.error('操作失败')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '取消失败')
   } finally {
-    updatingFuture.value = false
+    submittingCancelAction.value = false
   }
 }
 
-// 取消整个系列
-async function onCancelSeries() {
-  if (!series.value) return
-  try {
-    await ElMessageBox.confirm(
-      `确定取消整个系列预约（${series.value.totalCount}场）吗？此操作不可恢复。`,
-      '取消整个系列',
-      { type: 'error', confirmButtonText: '确定取消', cancelButtonText: '返回' },
-    )
-  } catch {
-    return
+function scopeLabel(scope: string) {
+  const map: Record<string, string> = {
+    ONCE: '仅本次', FUTURE: '本次及后续', ALL: '整个系列',
   }
-  cancelingSeries.value = true
-  try {
-    await cancelBooking(series.value.master.id, props.bookerId, true)
-    ElMessage.success('已取消整个系列')
-    visible.value = false
-    emit('series-updated')
-  } catch {
-    ElMessage.error('操作失败')
-  } finally {
-    cancelingSeries.value = false
-  }
+  return map[scope] ?? scope
 }
 </script>
 
 <style scoped>
-.update-future-bar {
+.action-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  padding: 10px;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
   background: var(--el-fill-color-light);
   border-radius: 4px;
   flex-wrap: wrap;
 }
 
-.bar-label {
+.action-label {
   font-size: 13px;
   color: var(--el-text-color-regular);
   white-space: nowrap;
 }
 
-.series-list-title {
+.section-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--el-text-color-secondary);

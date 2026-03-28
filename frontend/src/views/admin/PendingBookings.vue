@@ -31,7 +31,14 @@
         <el-button @click="reset">重置</el-button>
       </div>
 
-      <el-table :data="bookings" v-loading="loading" border>
+      <div v-show="canApprove && selectedIds.length > 0" class="batch-bar">
+        <span style="font-size: 13px; color: #606266">已选 {{ selectedIds.length }} 项</span>
+        <el-button type="success" size="small" :loading="batchLoading" @click="onBatchApprove">批量通过</el-button>
+        <el-button type="danger" size="small" :loading="batchLoading" @click="showBatchReject">批量驳回</el-button>
+      </div>
+
+      <el-table :data="bookings" v-loading="loading" border @selection-change="onSelectionChange">
+        <el-table-column type="selection" width="45" />
         <el-table-column prop="subject" label="主题" min-width="180" />
         <el-table-column prop="buildingName" label="楼栋" width="140" />
         <el-table-column prop="roomName" label="会议室" width="160" />
@@ -137,6 +144,18 @@
         <el-button type="primary" @click="submitApproval">确认</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="batchRejectVisible" title="批量驳回" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="驳回原因" style="color: #f56c6c">
+          <el-input v-model="batchRejectRemark" type="textarea" :rows="4" placeholder="请填写驳回原因（必填）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchRejectVisible = false">取消</el-button>
+        <el-button type="danger" :loading="batchLoading" @click="submitBatchReject">确认驳回</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -146,7 +165,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Booking } from '@/types/booking'
 import type { Building } from '@/types/building'
 import type { Room } from '@/types/room'
-import { approveBooking, getBookingDetail, getPendingBookings, rejectBooking } from '@/api/booking'
+import { approveBooking, batchApproveBooking, batchRejectBooking, getBookingDetail, getPendingBookings, rejectBooking } from '@/api/booking'
 import type { BookingDetail, BookingOperationLog } from '@/types/booking-detail'
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
@@ -156,6 +175,10 @@ import { businessDayEndMs, businessDayStartMs, formatBusinessDateTime, formatRan
 const store = useBookingStore()
 const canApprove = computed(() => store.isAdmin)
 const loading = ref(false)
+const selectedIds = ref<number[]>([])
+const batchLoading = ref(false)
+const batchRejectVisible = ref(false)
+const batchRejectRemark = ref('')
 const bookings = ref<Booking[]>([])
 const total = ref(0)
 const page = ref(0)
@@ -283,12 +306,58 @@ const approvalRemark = ref('')
 const remarkVisible = ref(false)
 const remarkMode = ref<'approve' | 'reject'>('approve')
 const remarkTarget = ref<Booking | null>(null)
+const detailVisible = ref(false)
+const detail = ref<Booking | null>(null)
+const detailLogs = ref<BookingOperationLog[]>([])
 
 async function openDetail(row: Booking) {
   detailVisible.value = true
   const resp: BookingDetail = await getBookingDetail(row.id)
   detail.value = resp.booking
   detailLogs.value = resp.operationLogs || []
+}
+
+function onSelectionChange(rows: Booking[]) {
+  selectedIds.value = rows.map((r) => r.id)
+}
+
+async function onBatchApprove() {
+  if (selectedIds.value.length === 0) return
+  batchLoading.value = true
+  try {
+    const res = await batchApproveBooking(selectedIds.value, store.userId)
+    ElMessage.success(`通过 ${res.successCount} 项${res.skippedCount > 0 ? '，跳过 ' + res.skippedCount + ' 项' : ''}`)
+    selectedIds.value = []
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '批量通过失败')
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function showBatchReject() {
+  batchRejectRemark.value = ''
+  batchRejectVisible.value = true
+}
+
+async function submitBatchReject() {
+  if (!batchRejectRemark.value.trim()) {
+    ElMessage.warning('请填写驳回原因')
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await batchRejectBooking(selectedIds.value, store.userId, batchRejectRemark.value.trim())
+    ElMessage.success(`驳回 ${res.successCount} 项${res.skippedCount > 0 ? '，跳过 ' + res.skippedCount + ' 项' : ''}`)
+    batchRejectVisible.value = false
+    selectedIds.value = []
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '批量驳回失败')
+  } finally {
+    batchLoading.value = false
+  }
 }
 
 onMounted(async () => {
@@ -298,6 +367,16 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #f4f4f5;
+  border-radius: 4px;
+}
+
 .search-bar {
   display: flex;
   align-items: center;

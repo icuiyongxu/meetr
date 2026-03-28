@@ -107,6 +107,18 @@ export function rejectBooking(id: number, operatorId: string, remark?: string) {
   return unwrap<Booking>(http.put(`/admin/bookings/${id}/reject`, { operatorId, remark }))
 }
 
+export function batchApproveBooking(bookingIds: number[], operatorId: string, remark?: string) {
+  return unwrap<{ successCount: number; skippedCount: number }>(
+    http.put('/admin/bookings/batch-approve', { bookingIds, operatorId, remark }),
+  )
+}
+
+export function batchRejectBooking(bookingIds: number[], operatorId: string, remark: string) {
+  return unwrap<{ successCount: number; skippedCount: number }>(
+    http.put('/admin/bookings/batch-reject', { bookingIds, operatorId, remark }),
+  )
+}
+
 // ── 系列预约 ──────────────────────────────────────────────
 
 export interface SeriesBookingResponse {
@@ -115,11 +127,24 @@ export interface SeriesBookingResponse {
   totalCount: number
 }
 
-export interface UpdateFutureSeriesRequest {
+
+
+/** 系列修改/取消范围 */
+export type SeriesScope = 'ONCE' | 'FUTURE' | 'ALL'
+
+export interface UpdateSeriesRequest {
   operatorId: string
-  newStartTimeMs: number
-  newEndTimeMs: number
-  fromSeriesIndex: number
+  scope: SeriesScope
+  subject?: string
+  startTime?: number
+  endTime?: number
+  attendeeCount?: number
+  remark?: string
+}
+
+export interface CancelSeriesRequest {
+  operatorId: string
+  scope: SeriesScope
 }
 
 /** 获取某个预约所属系列的所有预约（主预约 + 子预约列表） */
@@ -127,7 +152,17 @@ export function getSeriesBookings(bookingId: number, bookerId: string) {
   return unwrap<SeriesBookingResponse>(http.get(`/bookings/${bookingId}/series`, { params: { bookerId } }))
 }
 
-/** 批量修改系列中从 fromSeriesIndex 开始的后续预约时间 */
+/** 统一修改系列（本次 / 后续 / 全部） */
+export function updateSeries(bookingId: number, data: UpdateSeriesRequest) {
+  return unwrap<SeriesBookingResponse>(http.put(`/bookings/${bookingId}/series`, data))
+}
+
+/** 统一取消系列（本次 / 后续 / 全部） */
+export function cancelSeries(bookingId: number, data: CancelSeriesRequest) {
+  return unwrap<SeriesBookingResponse>(http.post(`/bookings/${bookingId}/series-cancel`, data))
+}
+
+/** 批量修改系列中从 fromSeriesIndex 开始的后续预约时间（兼容旧接口） */
 export function updateFutureSeries(bookingId: number, data: UpdateFutureSeriesRequest) {
   return unwrap<SeriesBookingResponse>(http.put(`/bookings/${bookingId}/future`, data))
 }
