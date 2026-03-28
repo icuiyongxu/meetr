@@ -170,6 +170,66 @@ public class BookingReportService {
     }
 
     /**
+     * 预约记录导出（不分页，最多10000条）。
+     */
+    public List<Map<String, Object>> exportBookingRecords(
+            String bookerId,
+            String keyword,
+            String status,
+            String approvalStatus,
+            Long startFromMs,
+            Long startToMs) {
+        long fromMs = startFromMs != null ? startFromMs
+            : LocalDate.now().minusDays(30).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long toMs = startToMs != null ? startToMs
+            : System.currentTimeMillis();
+
+        // 不走分页，直接查 mapper（有 LIMIT 10000）
+        List<Booking> bookings = bookingMapper.findBookingsForReport(
+            bookerId, keyword, status, approvalStatus, fromMs, toMs);
+
+        Map<Long, MeetingRoom> roomMap = meetingRoomMapper.findAll().stream()
+            .collect(java.util.stream.Collectors.toMap(MeetingRoom::getId, r -> r));
+        Map<Long, String> buildingNameMap = buildingMapper.findAllByOrderBySortNoAscIdAsc().stream()
+            .collect(java.util.stream.Collectors.toMap(
+                com.meetr.domain.entity.Building::getId,
+                com.meetr.domain.entity.Building::getName));
+
+        return bookings.stream().map(b -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("主题", b.getSubject());
+            MeetingRoom r = roomMap.get(b.getRoomId());
+            m.put("楼栋", r != null ? buildingNameMap.getOrDefault(r.getBuildingId(), "") : "");
+            m.put("会议室", r != null ? r.getName() : "");
+            m.put("预约人", b.getBookerName());
+            m.put("开始时间", formatTime(b.getStartTimeMs()));
+            m.put("结束时间", formatTime(b.getEndTimeMs()));
+            m.put("时长(分钟)", (b.getEndTimeMs() - b.getStartTimeMs()) / 60_000);
+            m.put("预约状态", "BOOKED".equals(b.getStatus().name()) ? "已确认" : "已取消");
+            m.put("审批状态", mapApprovalStatus(b.getApprovalStatus().name()));
+            return m;
+        }).toList();
+    }
+
+    private String formatTime(long ms) {
+        if (ms <= 0) return "";
+        return java.time.Instant.ofEpochMilli(ms)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+    }
+
+    private String mapApprovalStatus(String as) {
+        return switch (as) {
+            case "APPROVED" -> "已通过";
+            case "REJECTED" -> "已驳回";
+            case "PENDING" -> "待审批";
+            case "NONE" -> "无需审批";
+            default -> as;
+        };
+    }
+
+    /**
      * 用户维度统计。
      */
     public List<UserUsageVO> userUsage(LocalDate startDate, LocalDate endDate) {

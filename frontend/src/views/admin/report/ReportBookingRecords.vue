@@ -89,7 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { http } from '@/api'
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { getBookingRecords } from '@/api/report'
@@ -167,8 +167,31 @@ function changePage(p: number) {
   load()
 }
 
-function exportExcel() {
-  ElMessage.info('Excel 导出开发中（待实现）')
+async function exportExcel() {
+  const params: Record<string, string> = {
+    bookerId: filters.value.bookerId || '',
+    keyword: filters.value.keyword || '',
+    status: filters.value.status || '',
+    approvalStatus: filters.value.approvalStatus || '',
+  }
+  const [startDate, endDate] = dateRange.value ?? [null, null]
+  if (startDate) params.startFromMs = String(new Date(startDate).getTime())
+  if (endDate) params.startToMs = String(new Date(endDate).getTime() + 86400000)
+
+  const query = new URLSearchParams(params).toString()
+  const resp = await http.get(`/admin/reports/booking-records/export?${query}`, {
+    responseType: 'blob',
+  })
+  const blob = resp.data as Blob
+  if (blob.size === 0) return
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `预约记录_${new Date().toISOString().slice(0, 10)}.xlsx`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 onMounted(async () => {
