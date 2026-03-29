@@ -80,7 +80,7 @@ public class AuthService {
     }
 
     @Transactional
-    public SysUser updateUser(Long id, String name, String password, String status) {
+    public SysUser updateUser(Long id, String name, String password, String status, String email, Boolean emailEnabled) {
         SysUser user = requireUser(id);
         if (name != null && !name.isBlank()) {
             user.setName(name);
@@ -90,6 +90,12 @@ public class AuthService {
         }
         if (status != null) {
             user.setStatus(status);
+        }
+        if (email != null) {
+            user.setEmail(email.isBlank() ? null : email);
+        }
+        if (emailEnabled != null) {
+            user.setEmailEnabled(emailEnabled);
         }
         user.touchForUpdate();
         sysUserMapper.update(user);

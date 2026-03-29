@@ -33,6 +33,20 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="邮箱" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.email || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="邮件通知" width="100" align="center">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="!!row.emailEnabled"
+              active-text=""
+              inactive-text=""
+              size="small"
+              @change="toggleEmailEnabled(row, $event)"
+            />
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="openEditDialog(row)">编辑</el-button>
@@ -65,6 +79,12 @@
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="显示名称" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="form.email" placeholder="用于接收邮件通知" />
+        </el-form-item>
+        <el-form-item label="邮件通知">
+          <el-switch v-model="form.emailEnabled" />
         </el-form-item>
         <el-form-item :label="formMode === 'create' ? '密码' : '新密码'">
           <el-input
@@ -110,17 +130,17 @@ const loading = ref(false)
 const formVisible = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
 const formSaving = ref(false)
-const form = ref({ id: 0, userId: '', name: '', password: '' })
+const form = ref({ id: 0, userId: '', name: '', password: '', email: '', emailEnabled: false })
 
 function openCreateDialog() {
   formMode.value = 'create'
-  form.value = { id: 0, userId: '', name: '', password: '' }
+  form.value = { id: 0, userId: '', name: '', password: '', email: '', emailEnabled: false }
   formVisible.value = true
 }
 
 function openEditDialog(row: UserItem) {
   formMode.value = 'edit'
-  form.value = { id: row.id, userId: row.userId, name: row.name, password: '' }
+  form.value = { id: row.id, userId: row.userId, name: row.name, password: '', email: row.email || '', emailEnabled: !!row.emailEnabled }
   formVisible.value = true
 }
 
@@ -149,6 +169,8 @@ async function submitForm() {
       await updateUser(form.value.id, {
         name: form.value.name.trim() || undefined,
         password: form.value.password || undefined,
+        email: form.value.email || undefined,
+        emailEnabled: form.value.emailEnabled,
       })
       ElMessage.success('保存成功')
       formVisible.value = false
@@ -202,6 +224,16 @@ async function submitRoles() {
     await load()
   } finally {
     roleSaving.value = false
+  }
+}
+
+async function toggleEmailEnabled(row: UserItem, enabled: boolean) {
+  try {
+    await updateUser(row.id, { emailEnabled: enabled })
+    ElMessage.success(enabled ? '邮件通知已开启' : '邮件通知已关闭')
+    await load()
+  } catch {
+    ElMessage.error('修改失败')
   }
 }
 

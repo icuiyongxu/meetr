@@ -40,7 +40,7 @@ export async function createUser(data: { userId: string; name: string; password:
   return unwrap(http.post<ApiResponseLike<UserItem>>('/admin/users', data) as any)
 }
 
-export async function updateUser(id: number, data: { name?: string; password?: string; status?: string }) {
+export async function updateUser(id: number, data: { name?: string; password?: string; status?: string; email?: string; emailEnabled?: boolean }) {
   return unwrap(http.put<ApiResponseLike<UserItem>>(`/admin/users/${id}`, data) as any)
 }
 

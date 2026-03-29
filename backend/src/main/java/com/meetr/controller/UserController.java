@@ -16,14 +16,14 @@ public class UserController {
     private final SysUserMapper sysUserMapper;
     private final AuthService authService;
 
-    public record UserDTO(Long id, String userId, String name, String status, List<String> roles) {}
+    public record UserDTO(Long id, String userId, String name, String status, List<String> roles, String email, Boolean emailEnabled) {}
 
     @RequirePermission("user:view")
     @GetMapping
     public ApiResponse<List<UserDTO>> list() {
         return ApiResponse.ok(sysUserMapper.findAll().stream().map(u -> {
             List<String> roles = authService.getUserRoles(u.getUserId());
-            return new UserDTO(u.getId(), u.getUserId(), u.getName(), u.getStatus(), roles);
+            return new UserDTO(u.getId(), u.getUserId(), u.getName(), u.getStatus(), roles, u.getEmail(), u.getEmailEnabled());
         }).toList());
     }
 
@@ -34,6 +34,6 @@ public class UserController {
         if (detail == null) {
             throw new com.meetr.exception.BusinessException(40401, "用户不存在");
         }
-        return ApiResponse.ok(new UserDTO(detail.id(), detail.userId(), detail.name(), detail.status(), detail.roles()));
+        return ApiResponse.ok(new UserDTO(detail.id(), detail.userId(), detail.name(), detail.status(), detail.roles(), detail.email(), detail.emailEnabled()));
     }
 }
