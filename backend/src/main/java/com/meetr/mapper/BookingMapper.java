@@ -92,6 +92,7 @@ public interface BookingMapper {
                                  @Param("keyword") String keyword,
                                  @Param("roomId") Long roomId,
                                  @Param("status") String status,
+                                 @Param("approvalStatus") String approvalStatus,
                                  @Param("startTimeFrom") Long startTimeFrom,
                                  @Param("startTimeTo") Long startTimeTo);
 

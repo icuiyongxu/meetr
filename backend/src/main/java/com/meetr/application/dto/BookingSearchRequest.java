@@ -22,6 +22,9 @@ public class BookingSearchRequest {
     /** 状态（精确） */
     private String status;
 
+    /** 审批状态（精确） */
+    private String approvalStatus;
+
     /** 开始时间下限（UTC ms，含） */
     private Long startTimeFrom;
 

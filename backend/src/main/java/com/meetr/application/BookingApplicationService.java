@@ -253,7 +253,7 @@ public class BookingApplicationService {
         PageHelper.startPage(request.getPage() + 1, request.getSize());
         List<Booking> bookings = bookingMapper.searchBookings(
             request.getBookerId(), request.getKeyword(), request.getRoomId(), request.getStatus(),
-            request.getStartTimeFrom(), request.getStartTimeTo());
+            request.getApprovalStatus(), request.getStartTimeFrom(), request.getStartTimeTo());
         PageInfo<Booking> pageInfo = new PageInfo<>(bookings);
         List<BookingDTO> dtos = bookings.stream().map(this::toDto).toList();
         return new PageResult<>(dtos, pageInfo.getTotal());

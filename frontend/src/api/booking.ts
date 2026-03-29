@@ -82,6 +82,21 @@ export function searchBookings(params: {
   return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/bookings/search', { params }))
 }
 
+/** 管理员全局预约搜索（bookerId 可选） */
+export function searchAdminBookings(params: {
+  bookerId?: string
+  roomId?: number
+  keyword?: string
+  status?: string
+  approvalStatus?: string
+  startTimeFrom?: number
+  startTimeTo?: number
+  page: number
+  size: number
+}) {
+  return unwrap<{ content: Booking[]; totalElements: number }>(http.get('/admin/bookings/search', { params }))
+}
+
 export function countPendingBookings() {
   return unwrap<{ totalElements: number; content: Booking[] }>(http.get('/admin/bookings/pending', { params: { page: 0, size: 1 } }))
 }

@@ -3,6 +3,7 @@ package com.meetr.controller;
 import com.meetr.application.BookingApplicationService;
 import com.meetr.application.dto.BookingApprovalRequest;
 import com.meetr.application.dto.BookingDTO;
+import com.meetr.application.dto.BookingSearchRequest;
 import com.meetr.application.dto.PendingBookingQuery;
 import com.meetr.config.RequirePermission;
 import jakarta.validation.Valid;
@@ -30,6 +31,19 @@ public class AdminBookingController {
         if (query.getSize() > 100) query.setSize(100);
         if (query.getPage() < 0) query.setPage(0);
         return ApiResponse.ok(bookingApplicationService.getPendingBookings(query));
+    }
+
+    /**
+     * 全局预约搜索（管理员用，可搜索所有用户的预约）。
+     * bookerId/roomId/keyword/status/startTimeFrom/startTimeTo 均为可选过滤条件。
+     */
+    @RequirePermission("booking:view")
+    @GetMapping("/search")
+    public ApiResponse<BookingApplicationService.PageResult<BookingDTO>> search(@ModelAttribute BookingSearchRequest query) {
+        if (query.getSize() <= 0) query.setSize(20);
+        if (query.getSize() > 100) query.setSize(100);
+        if (query.getPage() < 0) query.setPage(0);
+        return ApiResponse.ok(bookingApplicationService.searchBookings(query));
     }
 
     @RequirePermission("booking:approve")

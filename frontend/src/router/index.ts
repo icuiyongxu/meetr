@@ -15,6 +15,7 @@ const routes = [
   { path: '/admin/report/room-usage', component: () => import('@/views/admin/report/ReportRoomUsage.vue') },
   { path: '/admin/report/records', component: () => import('@/views/admin/report/ReportBookingRecords.vue') },
   { path: '/admin/report/user-usage', component: () => import('@/views/admin/report/ReportUserUsage.vue') },
+  { path: '/admin/booking-search', component: () => import('@/views/admin/BookingSearch.vue') },
   { path: '/kiosk/room/:roomId', component: () => import('@/views/KioskView.vue') },
 ]
 

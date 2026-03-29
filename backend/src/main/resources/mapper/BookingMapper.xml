@@ -110,6 +110,9 @@
             <if test="status != null and status != ''">
                 and status = #{status}
             </if>
+            <if test="approvalStatus != null and approvalStatus != ''">
+                and approval_status = #{approvalStatus}
+            </if>
             <if test="startTimeFrom != null">
                 and start_time_ms &gt;= #{startTimeFrom}
             </if>

@@ -29,6 +29,7 @@
           <el-menu-item index="/admin/report/room-usage">使用率统计</el-menu-item>
           <el-menu-item index="/admin/report/records">预约记录</el-menu-item>
           <el-menu-item index="/admin/report/user-usage">用户统计</el-menu-item>
+          <el-menu-item index="/admin/booking-search">预约搜索</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </el-aside>
@@ -210,6 +211,7 @@ const titles: Record<string, string> = {
   '/admin/report/room-usage': '使用率统计',
   '/admin/report/records': '预约记录',
   '/admin/report/user-usage': '用户统计',
+  '/admin/booking-search': '预约搜索',
 }
 const currentPageTitle = computed(() => titles[route.path] ?? 'Meetr')
 </script>
