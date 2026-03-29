@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +56,7 @@ public class AuthService {
             .userId(userId)
             .name(userId)
             .status("ACTIVE")
+            .calendarToken(UUID.randomUUID().toString().replace("-", ""))
             .build();
         user.initTimestampsForInsert();
         sysUserMapper.insert(user);
@@ -72,6 +74,7 @@ public class AuthService {
             .name(name != null ? name : userId)
             .password(passwordEncoder.encode(password))
             .status("ACTIVE")
+            .calendarToken(UUID.randomUUID().toString().replace("-", ""))
             .build();
         user.initTimestampsForInsert();
         sysUserMapper.insert(user);
@@ -173,7 +176,8 @@ public class AuthService {
             return null;
         }
         return new UserDetail(user.getId(), user.getUserId(), user.getName(), user.getStatus(),
-            getUserRoles(userId), getUserPermissions(userId), user.getEmail(), user.getEmailEnabled());
+            getUserRoles(userId), getUserPermissions(userId), user.getEmail(), user.getEmailEnabled(),
+            getOrCreateCalendarToken(userId));
     }
 
     public List<String> getUserPermissions(String userId) {
@@ -248,6 +252,36 @@ public class AuthService {
     }
 
     public record UserDetail(Long id, String userId, String name, String status, List<String> roles,
-                             List<String> permissions, String email, Boolean emailEnabled) {
+                             List<String> permissions, String email, Boolean emailEnabled, String calendarToken) {
+    }
+
+    /**
+     * 获取用户的日历订阅 Token（如果没有则自动创建）。
+     */
+    public String getOrCreateCalendarToken(String userId) {
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            throw new com.meetr.exception.BusinessException(40401, "用户不存在");
+        }
+        if (user.getCalendarToken() == null || user.getCalendarToken().isBlank()) {
+            user.setCalendarToken(UUID.randomUUID().toString().replace("-", ""));
+            sysUserMapper.update(user);
+        }
+        return user.getCalendarToken();
+    }
+
+    /**
+     * 重新生成日历订阅 Token（旧的立即失效）。
+     */
+    public String regenerateCalendarToken(String userId) {
+        SysUser user = sysUserMapper.findByUserId(userId);
+        if (user == null) {
+            throw new com.meetr.exception.BusinessException(40401, "用户不存在");
+        }
+        String newToken = UUID.randomUUID().toString().replace("-", "");
+        user.setCalendarToken(newToken);
+        user.touchForUpdate();
+        sysUserMapper.update(user);
+        return newToken;
     }
 }

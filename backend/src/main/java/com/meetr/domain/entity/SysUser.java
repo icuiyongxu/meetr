@@ -21,6 +21,8 @@ public class SysUser {
     private Long updatedAtMs;
     private String email;
     private Boolean emailEnabled = false;
+    /** 日历订阅 Token，用于生成 iCal 订阅 URL */
+    private String calendarToken;
 
     public void initTimestampsForInsert() {
         long now = System.currentTimeMillis();

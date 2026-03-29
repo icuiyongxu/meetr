@@ -52,6 +52,18 @@ public interface BookingMapper {
 
     Page<Booking> findByBookerIdOrderByStartTimeMsDesc(@Param("bookerId") String bookerId);
 
+    @Select("SELECT b.id, b.room_id, b.subject, b.booker_id, b.booker_name, b.start_time_ms, b.end_time_ms, " +
+            "b.attendee_count, b.status, b.approval_status, b.remark, b.version, b.recurrence_type, " +
+            "b.recurrence_end_date, b.parent_id, b.series_index, b.created_at_ms, b.updated_at_ms " +
+            "FROM booking b " +
+            "WHERE b.booker_id = #{bookerId} " +
+            "  AND b.start_time_ms >= #{rangeStart} " +
+            "  AND b.start_time_ms <= #{rangeEnd} " +
+            "ORDER BY b.start_time_ms ASC")
+    List<Booking> findByBookerIdAndTimeRange(@Param("bookerId") String bookerId,
+                                              @Param("rangeStart") Long rangeStart,
+                                              @Param("rangeEnd") Long rangeEnd);
+
     List<Booking> findTodayBookings(@Param("bookerId") String bookerId,
                                     @Param("dayStartMs") Long dayStartMs,
                                     @Param("dayEndMs") Long dayEndMs);

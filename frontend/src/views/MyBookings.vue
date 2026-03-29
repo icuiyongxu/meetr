@@ -2,6 +2,25 @@
   <div>
     <div class="meetr-page-title">我的预约</div>
 
+    <el-card shadow="never" class="calendar-sub-card">
+      <div class="cal-sub-header">
+        <span class="cal-sub-title">📅 日历订阅</span>
+        <span class="cal-sub-hint">复制下方链接，粘贴到日历软件（Google Calendar、Outlook、Apple Calendar）即可订阅</span>
+      </div>
+      <div class="cal-sub-row" v-if="calendarUrl">
+        <el-input v-model="calendarUrl" readonly size="small" style="flex:1">
+          <template #append>
+            <el-button @click="copyCalendarUrl">复制</el-button>
+          </template>
+        </el-input>
+        <el-button size="small" style="margin-left:8px" @click="onRegenerate" :loading="regenLoading">重新生成</el-button>
+      </div>
+      <div v-else-if="!calUrlLoading">
+        <el-button size="small" type="primary" @click="loadCalendarUrl">生成订阅链接</el-button>
+      </div>
+      <div v-if="calUrlLoading" class="cal-sub-loading">加载中...</div>
+    </el-card>
+
     <el-card shadow="never">
       <!-- 搜索工具栏 -->
       <div class="search-bar">
@@ -108,6 +127,7 @@ import { cancelBooking, getBookingDetail, getMyBookings, getTodayBookings, searc
 import type { BookingDetail, BookingOperationLog } from '@/types/booking-detail'
 import { useBookingStore } from '@/stores/booking'
 import { businessDayEndMs, businessDayStartMs, formatRange } from '@/utils/datetime'
+import { getCalendarSubscriptionUrl, regenerateCalendarToken } from '@/api/user'
 
 type TabKey = 'all' | 'today' | 'pending'
 
@@ -135,6 +155,46 @@ const total = ref(0)
 const searchKeyword = ref('')
 const searchDateRange = ref<[string, string] | null>(null)
 const searchStatus = ref<string>('')
+
+// 日历订阅
+const calendarUrl = ref('')
+const calUrlLoading = ref(false)
+const regenLoading = ref(false)
+
+async function loadCalendarUrl() {
+  calUrlLoading.value = true
+  try {
+    calendarUrl.value = await getCalendarSubscriptionUrl(store.userId)
+  } catch {
+    ElMessage.error('获取日历订阅链接失败')
+  } finally {
+    calUrlLoading.value = false
+  }
+}
+
+async function onRegenerate() {
+  regenLoading.value = true
+  try {
+    calendarUrl.value = await regenerateCalendarToken(store.userId)
+    ElMessage.success('已生成新的订阅链接，旧链接已失效')
+  } catch {
+    ElMessage.error('重新生成失败')
+  } finally {
+    regenLoading.value = false
+  }
+}
+
+function copyCalendarUrl() {
+  navigator.clipboard.writeText(calendarUrl.value).then(() => {
+    ElMessage.success('订阅链接已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败，请手动复制')
+  })
+}
+
+onMounted(() => {
+  loadCalendarUrl()
+})
 const searchMode = ref(false)
 
 const viewBookings = computed<Booking[]>(() => {
@@ -312,5 +372,35 @@ onMounted(() => reload())
   margin-top: 14px;
   display: flex;
   justify-content: flex-end;
+}
+
+.calendar-sub-card {
+  margin-bottom: 12px;
+}
+
+.cal-sub-header {
+  margin-bottom: 10px;
+}
+
+.cal-sub-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.cal-sub-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.cal-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-sub-loading {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

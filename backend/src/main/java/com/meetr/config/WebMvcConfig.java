@@ -18,6 +18,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             .addPathPatterns("/api/**");
 
         registry.addInterceptor(permissionInterceptor)
-            .addPathPatterns("/api/**");
+            .addPathPatterns("/api/**")
+            .excludePathPatterns("/api/users/*/ical");
     }
 }

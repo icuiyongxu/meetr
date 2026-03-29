@@ -8,6 +8,7 @@ export interface UserItem {
   roles: string[]
   email?: string
   emailEnabled?: boolean
+  calendarToken?: string
 }
 
 export interface UserProfile {
@@ -18,10 +19,19 @@ export interface UserProfile {
   roles: string[]
   email?: string
   emailEnabled?: boolean
+  calendarToken?: string
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
   return unwrap(http.get('/auth/me', { params: { userId } }))
+}
+
+export async function getCalendarSubscriptionUrl(userId: string): Promise<string> {
+  return unwrap(http.get('/users/' + userId + '/calendar-url'))
+}
+
+export async function regenerateCalendarToken(userId: string): Promise<string> {
+  return unwrap(http.post('/users/' + userId + '/calendar-regenerate'))
 }
 
 export async function updateProfile(data: { userId: string; name?: string; password?: string; email?: string; emailEnabled?: boolean }) {
