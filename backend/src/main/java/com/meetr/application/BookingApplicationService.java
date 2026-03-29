@@ -165,6 +165,61 @@ public class BookingApplicationService {
         return BookingResult.success(toDto(booking));
     }
 
+    /**
+     * 将预约会议室更换为 newRoomId（保留原时间、主题等）。
+     * 使用新会议室的配置重新校验规则和冲突。
+     */
+    @Transactional
+    public BookingResult transferRoom(Long bookingId, Long newRoomId, String operatorId) {
+        Booking booking = requireBooking(bookingId);
+        assertOperator(booking, operatorId);
+        if (booking.getStatus() == BookingStatus.CANCELED) {
+            throw new BusinessException(40002, "已取消预约不可更换会议室");
+        }
+
+        MeetingRoom newRoom = requireAvailableRoom(newRoomId);
+        MeetingRoom oldRoom = meetingRoomMapper.findById(booking.getRoomId());
+        RoomConfig config = roomConfigApplicationService.getEnabledEffectiveConfigEntity(newRoom.getId());
+
+        // 保持原时间，使用新会议室的时间粒度对齐
+        LocalDateTime startUtc = BusinessTime.msToUtcLocalDateTime(booking.getStartTimeMs());
+        LocalDateTime endUtc = BusinessTime.msToUtcLocalDateTime(booking.getEndTimeMs());
+        TimeSlot alignedSlot = conflictCheckService.alignToSlot(new TimeSlot(startUtc, endUtc), config);
+
+        // 规则校验（临时修改 roomId 用于校验）
+        Long originalRoomId = booking.getRoomId();
+        booking.setRoomId(newRoom.getId());
+        List<RuleViolation> violations = bookingRuleService.validate(booking, newRoom, config);
+        if (!violations.isEmpty()) {
+            booking.setRoomId(originalRoomId);
+            return BookingResult.rejected(violations);
+        }
+
+        // 冲突校验
+        ConflictCheckService.ConflictResult conflict = conflictCheckService.hasConflict(newRoom.getId(), alignedSlot, booking.getId());
+        if (conflict.conflict()) {
+            booking.setRoomId(originalRoomId);
+            return BookingResult.conflicted(toConflictDtos(conflict.conflictingBookings()));
+        }
+
+        // 执行换会议室
+        String oldRoomName = oldRoom != null ? oldRoom.getName() : "未知";
+        booking.setRoomId(newRoom.getId());
+        booking.setStartTimeMs(BusinessTime.utcLocalDateTimeToMs(alignedSlot.start()));
+        booking.setEndTimeMs(BusinessTime.utcLocalDateTimeToMs(alignedSlot.end()));
+        booking.touchForUpdate();
+        updateBooking(booking);
+
+        String newRoomName = newRoom.getName();
+        saveLog(booking.getId(), "TRANSFER_ROOM", operatorId, operatorId,
+            "更换会议室：" + oldRoomName + " → " + newRoomName);
+        publishEvent(NotificationEventType.BOOKING_UPDATED, booking, booking.getBookerId(),
+            bookingAttendeeMapper.findByBookingIdOrderByIdAsc(booking.getId()).stream()
+                .map(BookingAttendee::getUserId).toList());
+
+        return BookingResult.success(toDto(booking));
+    }
+
     @Transactional
     public void cancel(Long bookingId, String operatorId, boolean cancelSeries) {
         Booking booking = requireBooking(bookingId);
@@ -587,6 +642,11 @@ public class BookingApplicationService {
         for (Booking b : affected) {
             if (b.getStatus() == BookingStatus.CANCELED) {
                 throw new BusinessException(40002, "已取消的预约不可修改");
+            }
+
+            // 新开始时间不能在过去
+            if (request.getStartTime() != null && request.getStartTime() < System.currentTimeMillis()) {
+                throw new BusinessException(40002, "开始时间不能早于当前时间");
             }
             MeetingRoom room = meetingRoomMapper.findById(b.getRoomId());
             List<RuleViolation> violations = bookingRuleService.validate(b, room,

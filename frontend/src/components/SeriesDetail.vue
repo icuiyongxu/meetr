@@ -26,7 +26,30 @@
         </el-radio-group>
         <el-divider direction="vertical" />
         <span class="action-label">新主题：</span>
-        <el-input v-model="updateSubject" placeholder="不填则保持原值" size="small" style="width: 160px" clearable />
+        <el-input v-model="updateSubject" placeholder="不填则保持原值" size="small" style="width: 130px" clearable />
+        <el-divider direction="vertical" />
+        <span class="action-label">新开始：</span>
+        <el-date-picker
+          v-model="newStartTime"
+          type="datetime"
+          placeholder="不填保持原值"
+          format="MM-DD HH:mm"
+          value-format="x"
+          size="small"
+          style="width: 150px"
+          clearable
+        />
+        <span class="action-label" style="margin-left:4px">新结束：</span>
+        <el-date-picker
+          v-model="newEndTime"
+          type="datetime"
+          placeholder="不填保持原值"
+          format="MM-DD HH:mm"
+          value-format="x"
+          size="small"
+          style="width: 150px"
+          clearable
+        />
         <el-button type="primary" size="small" :loading="submittingUpdate" @click="onUpdateSeries">
           确认修改
         </el-button>
@@ -143,6 +166,8 @@ const skippingId = ref<number | null>(null)
 // 修改范围
 const updateScope = ref<SeriesScope>('ONCE')
 const updateSubject = ref('')
+const newStartTime = ref<Date | ''>('')
+const newEndTime = ref<Date | ''>('')
 
 // 取消范围
 const cancelDialogVisible = ref(false)
@@ -243,13 +268,17 @@ async function onUpdateSeries() {
       operatorId: props.bookerId,
       scope: updateScope.value,
       subject: updateSubject.value || undefined,
+      startTime: newStartTime.value ? Number(newStartTime.value) : undefined,
+      endTime: newEndTime.value ? Number(newEndTime.value) : undefined,
     })
     ElMessage.success('修改成功')
     updateSubject.value = ''
+    newStartTime.value = ''
+    newEndTime.value = ''
     await loadSeries()
     emit('series-updated')
   } catch (e: any) {
-    ElMessage.error(e?.message || '修改失败')
+    // 错误已在拦截器弹示
   } finally {
     submittingUpdate.value = false
   }

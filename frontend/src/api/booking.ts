@@ -177,6 +177,11 @@ export function cancelSeries(bookingId: number, data: CancelSeriesRequest) {
   return unwrap<SeriesBookingResponse>(http.post(`/bookings/${bookingId}/series-cancel`, data))
 }
 
+/** 更换会议室 */
+export function transferRoom(bookingId: number, operatorId: string, newRoomId: number) {
+  return unwrap<BookingResult>(http.put(`/bookings/${bookingId}/transfer-room`, { operatorId, newRoomId }))
+}
+
 /** 批量修改系列中从 fromSeriesIndex 开始的后续预约时间（兼容旧接口） */
 export function updateFutureSeries(bookingId: number, data: UpdateFutureSeriesRequest) {
   return unwrap<SeriesBookingResponse>(http.put(`/bookings/${bookingId}/future`, data))

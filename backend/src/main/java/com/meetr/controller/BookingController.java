@@ -11,6 +11,7 @@ import com.meetr.application.dto.ConflictCheckRequest;
 import com.meetr.application.dto.ConflictCheckResponse;
 import com.meetr.application.dto.CreateBookingCommand;
 import com.meetr.application.dto.SeriesBookingResponse;
+import com.meetr.application.dto.TransferRoomRequest;
 import com.meetr.application.dto.UpdateBookingCommand;
 import com.meetr.application.dto.UpdateFutureSeriesRequest;
 import com.meetr.config.RequirePermission;
@@ -49,6 +50,16 @@ public class BookingController {
     public ApiResponse<Void> cancel(@PathVariable Long id, @Valid @RequestBody CancelBookingRequest request) {
         bookingApplicationService.cancel(id, request.getOperatorId(), Boolean.TRUE.equals(request.getCancelSeries()));
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * 更换预约的会议室（保留时间、主题等）。
+     * 会用新会议室的配置重新校验规则和冲突。
+     */
+    @RequirePermission("booking:manage")
+    @PutMapping("/{id}/transfer-room")
+    public ApiResponse<BookingResult> transferRoom(@PathVariable Long id, @Valid @RequestBody TransferRoomRequest request) {
+        return ApiResponse.ok(bookingApplicationService.transferRoom(id, request.getNewRoomId(), request.getOperatorId()));
     }
 
     @RequirePermission("booking:view")

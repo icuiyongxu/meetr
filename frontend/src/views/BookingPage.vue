@@ -130,7 +130,12 @@
           @conflict="(c) => (submitConflicts = c)"
           @success="onSuccess"
         />
-        <ConflictAlert :conflicts="submitConflicts" />
+        <ConflictAlert
+          :conflicts="submitConflicts"
+          :start-time="initialSlot?.start.getTime()"
+          :end-time="initialSlot?.end.getTime()"
+          @select-room="onSelectAlternativeRoom"
+        />
       </el-col>
     </el-row>
   </div>
@@ -359,6 +364,10 @@ function onDateChange() {
 
 function onSuccess() {
   router.push('/dashboard')
+}
+
+function onSelectAlternativeRoom(newRoomId: number) {
+  router.push(`/book/${newRoomId}`)
 }
 
 onMounted(async () => {

@@ -17,6 +17,7 @@ const routes = [
   { path: '/admin/report/user-usage', component: () => import('@/views/admin/report/ReportUserUsage.vue') },
   { path: '/admin/booking-search', component: () => import('@/views/admin/BookingSearch.vue') },
   { path: '/kiosk/room/:roomId', component: () => import('@/views/KioskView.vue') },
+  { path: '/book/:roomId', component: () => import('@/views/BookingPage.vue') },
 ]
 
 export default createRouter({

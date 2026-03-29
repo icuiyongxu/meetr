@@ -80,6 +80,7 @@
         <el-table-column label="操作" width="80" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="viewDetail(row)">详情</el-button>
+            <el-button type="warning" size="small" link :disabled="row.status === 'CANCELED'" @click="openTransfer(row)">换会议室</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -121,6 +122,29 @@
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 换会议室弹窗 -->
+    <el-dialog v-model="transferVisible" title="更换会议室" width="460px" append-to-body destroy-on-close>
+      <el-form v-if="transferTarget" :model="transferForm" label-width="90px">
+        <el-form-item label="当前会议室">
+          <span>{{ transferTarget.roomName }}</span>
+        </el-form-item>
+        <el-form-item label="目标楼栋">
+          <el-select v-model="transferForm.buildingId" clearable filterable placeholder="选择楼栋" style="width:100%" @change="onTransferBuildingChange">
+            <el-option v-for="b in buildings" :key="b.id" :label="b.name" :value="b.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标会议室">
+          <el-select v-model="transferForm.newRoomId" clearable filterable placeholder="选择会议室" style="width:100%">
+            <el-option v-for="r in transferRoomOptions" :key="r.id" :label="r.name" :value="r.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferVisible = false">取消</el-button>
+        <el-button type="primary" :loading="transferLoading" @click="confirmTransfer">确认换会议室</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -128,7 +152,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Booking } from '@/types/booking'
-import { searchAdminBookings } from '@/api/booking'
+import { useBookingStore } from '@/stores/booking'
+import { searchAdminBookings, transferRoom } from '@/api/booking'
 import { getBuildings } from '@/api/building'
 import { getRooms } from '@/api/room'
 import { formatBusinessDateTime } from '@/utils/datetime'
@@ -155,6 +180,12 @@ const currentPage = ref(0)
 
 const detailVisible = ref(false)
 const detail = ref<Booking | null>(null)
+
+const transferVisible = ref(false)
+const transferTarget = ref<Booking | null>(null)
+const transferForm = ref({ buildingId: undefined as number | undefined, newRoomId: undefined as number | undefined })
+const transferRoomOptions = ref<any[]>([])
+const transferLoading = ref(false)
 
 onMounted(async () => {
   buildings.value = await getBuildings()
@@ -217,6 +248,44 @@ function onPageChange(page: number) {
 function viewDetail(row: Booking) {
   detail.value = row
   detailVisible.value = true
+}
+
+function openTransfer(row: Booking) {
+  transferTarget.value = row
+  transferForm.value = { buildingId: undefined, newRoomId: undefined }
+  transferRoomOptions.value = []
+  transferVisible.value = true
+}
+
+function onTransferBuildingChange() {
+  transferForm.value.newRoomId = undefined
+  if (transferForm.value.buildingId) {
+    getRooms({ buildingId: transferForm.value.buildingId }).then((res) => {
+      transferRoomOptions.value = res.filter((r: any) => r.id !== transferTarget.value?.roomId)
+    })
+  } else {
+    transferRoomOptions.value = []
+  }
+}
+
+async function confirmTransfer() {
+  if (!transferForm.value.newRoomId) {
+    ElMessage.warning('请选择目标会议室')
+    return
+  }
+  if (!transferTarget.value) return
+  const store = useBookingStore()
+  transferLoading.value = true
+  try {
+    await transferRoom(transferTarget.value.id, store.userId, transferForm.value.newRoomId)
+    ElMessage.success('换会议室成功')
+    transferVisible.value = false
+    await search()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '换会议室失败')
+  } finally {
+    transferLoading.value = false
+  }
 }
 
 function fmtDate(ms: number) {
